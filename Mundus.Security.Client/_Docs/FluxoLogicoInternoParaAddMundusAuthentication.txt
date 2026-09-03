@@ -47,8 +47,8 @@ estrutura da string do token em modo rápido para extrair a claim identificadora
 VIDE_MUNDUS_SITE). 
 
 • Tratamento de Cache Miss Automatizado: Se a chave não estiver na memória RAM do satélite, o plugin ativa o 
-MundusM2MClient, coleta os segredos de máquina nas variáveis de ambiente locais, dispara um POST criptografado para o 
-CIAM e traz as credenciais de validação limpas.
+MundusM2MClient, coleta os segredos de máquina nas variáveis de ambiente locais, disparando um POST criptografado 
+para o CIAM e traz as credenciais de validação limpas.
 
 • Alimentação Estruturada por Contrato: Ao receber o payload do CIAM, o plugin configura o cache local utilizando a 
 propriedade TokenExpirationMinutes vinda do próprio banco do contrato, garantindo sincronia perfeita com as regras de 

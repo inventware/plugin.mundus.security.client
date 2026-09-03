@@ -7,5 +7,14 @@ namespace Mundus.Security.Client.DTOs
         "limpa, o JwtIssuer e o TokenExpirationMinutes dinâmico do contrato")]
     public class MundusTokenConfigurationResponseDTO
     {
+        public string MachineToken { get; set; }
+
+        public string JwtIssuer { get; set; }
+
+        public string JwtSecretKey { get; set; }
+
+        public string[] Urls { get; set; }
+
+        public int TokenExpirationMinutes { get; set; }
     }
 }
