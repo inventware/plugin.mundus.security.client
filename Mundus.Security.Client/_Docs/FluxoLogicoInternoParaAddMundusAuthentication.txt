@@ -1,0 +1,60 @@
+┌────────────────────────────────────────────────────────┐
+│  1. Interceptor lê claims do token em texto puro       │
+│     (AuthorizedCompanyCode & ApplicationCode)          │
+└──────────────┬─────────────────────────────────────────┘
+               │
+               ▼
+┌────────────────────────────────────────────────────────┐
+│  2. Procura no IMemoryCache Local da API Satélite      │
+└──────────────┬─────────────────────────────────────────┘
+               │
+               ├─── [ Encontrou no Cache (Cache Hit) ] ──-─┐
+               │                                           │
+               └─── [ NÃO Encontrou (Cache Miss) ]         │
+                               │                           │
+                               ▼                           │
+               ┌──────────────────────────────┐            │
+               │ 3. Lê Variáveis de Ambiente  │            │
+               └───────────────┬──────────────┘            │
+                               │                           │
+                               ▼                           │
+               ┌──────────────────────────────┐            │
+               │ 4. Faz chamada M2M ao CIAM   │            │
+               │    e recupera as chaves      │            │
+               └───────────────┬──────────────┘            │
+                               │                           │
+                               ▼                           │
+               ┌──────────────────────────────┐            │
+               │ 5. Alimenta IMemoryCache     │            │
+               │    usando expiração do DTO   │            │
+               └───────────────┬──────────────┘            │
+                               │                           │
+                               ▼                           ▼
+               ┌───────────────────────────────────────────────┐
+               │ 6. Validação Matemática da Assinatura em RAM  │
+               └───────────────────────┬───────────────────────┘
+                                       │
+                                       ▼
+               ┌───────────────────────────────────────────────┐
+               │ 7. Preenche HttpContext.User com as Roles     │
+               └───────────────────────────────────────────────┘
+
+
+• Interceptação Cirúrgica: O middleware do NuGet intercepta o cabeçalho Authorization da requisição. Decodificando a 
+estrutura da string do token em modo rápido para extrair a claim identificadora da empresa (AuthorizedCompanyCode).
+
+• Checagem de Memória Local: O código busca por uma chave composta no IMemoryCache da aplicação satélite (Ex: 
+VIDE_MUNDUS_SITE). 
+
+• Tratamento de Cache Miss Automatizado: Se a chave não estiver na memória RAM do satélite, o plugin ativa o 
+MundusM2MClient, coleta os segredos de máquina nas variáveis de ambiente locais, dispara um POST criptografado para o 
+CIAM e traz as credenciais de validação limpas.
+
+• Alimentação Estruturada por Contrato: Ao receber o payload do CIAM, o plugin configura o cache local utilizando a 
+propriedade TokenExpirationMinutes vinda do próprio banco do contrato, garantindo sincronia perfeita com as regras de 
+negócio definidas no painel.
+
+• Crivo Matemático e Conceder de Acesso: O plugin valida a assinatura do token do usuário em memória RAM com a chave 
+simétrica do contrato. Estando tudo correto, ele empacota a identidade, preenche a propriedade global 
+    context.User = new ClaimsPrincipal(...) 
+com as Roles reais e empurra a fila de middlewares nativos do ASP.NET Core para a frente (await _next(context)).
