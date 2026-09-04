@@ -1,3 +1,4 @@
 <Solution>
+  <Project Path="../mundus.security.client.test/Mundus.Security.Client.Test.csproj" />
   <Project Path="Mundus.Security.Client/Mundus.Security.Client.csproj" />
 </Solution>

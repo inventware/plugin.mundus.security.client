@@ -23,12 +23,13 @@ namespace Mundus.Security.Client.Services
         public async Task<MundusTokenConfigurationResponseDTO> GetContractConfigurationAsync(MundusConfigurationOptions 
             options)
         {
-            if (options == null) throw new ArgumentNullException(nameof(options));
+            if (options == null) 
+                throw new ArgumentNullException(nameof(options));
 
-            var ciamUrl = Environment.GetEnvironmentVariable("MUNDUS_CIAM_URL");
+            var ciamUrl = Environment.GetEnvironmentVariable("MUNDUS_SECURITY_URL");
             if (string.IsNullOrWhiteSpace(ciamUrl))
             {
-                throw new InvalidOperationException("Erro de infraestrutura: a variável de ambiente MUNDUS_CIAM_URL " +
+                throw new InvalidOperationException("Erro de infraestrutura: a variável de ambiente MUNDUS_SECURITY_URL " +
                     "não foi encontrada ou está vazia.");
             }
 

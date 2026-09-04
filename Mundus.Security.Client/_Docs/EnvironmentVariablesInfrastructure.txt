@@ -1,0 +1,79 @@
+📚 Guia Definitivo de Infraestrutura (Para a documentação do GitHub)
+
+Aqui está o passo a passo sucinto, claro e direto ao ponto para os seus futuros clientes configurarem as 5 variáveis do Mundus Security 
+em qualquer ambiente:
+
+1. Docker & Docker Compose (O Padrão Moderno)
+No arquivo docker-compose.yml do cliente, as variáveis são injetadas de forma isolada dentro do container:
+services:
+  api.videmundus:
+    image: videmundus-api:latest
+    environment:
+      - MUNDUS_COMPANY_CODE=VIDE_MUNDUS
+      - MUNDUS_APPLICATION_CODE=VIDE_MUNDUS_SITE
+      - MUNDUS_CLIENT_ID=VIDE_MUNDUS_VIDE_MUNDUS_SITE_001_M2M
+      - MUNDUS_CLIENT_SECRET=632CF113BBE24DBDA4E0814D3AF2461A
+      - MUNDUS_SECURITY_URL=https://mundussecurity.com.br
+
+2. Linux Ubuntu / Debian (Serviço Systemd)
+Se o cliente hospedar a aplicação .NET diretamente em uma máquina virtual Linux rodando via systemd, ele edita o arquivo de serviço 
+(/etc/systemd/system/videmundus.service):
+    [Service]
+    ExecStart=/usr/bin/dotnet /var/www/videmundus/VideMundus.API.dll
+    Restart=always
+    User=www-data
+    Environment=MUNDUS_COMPANY_CODE=VIDE_MUNDUS
+    Environment=MUNDUS_APPLICATION_CODE=VIDE_MUNDUS_SITE
+    Environment=MUNDUS_CLIENT_ID=VIDE_MUNDUS_VIDE_MUNDUS_SITE_001_M2M
+    Environment=MUNDUS_CLIENT_SECRET=632CF113BBE24DBDA4E0814D3AF2461A
+    Environment=MUNDUS_SECURITY_URL=https://mundussecurity.com.br
+
+3. Servidor Web Apache / Nginx (como Proxy Reverso)
+    O Apache ou Nginx funcionam apenas como "porteiros" (redirecionando a porta 80/443 para a porta interna do .NET, ex: 5000). Quem roda 
+o código .NET é o processo gerenciado pelo Systemd acima. Portanto, as variáveis ficam no Systemd, e o Apache não precisa saber delas.
+
+4. Windows IIS (Servidor Web Tradicional)
+No IIS do Windows, o cliente pode isolar as variáveis por site adicionando-as diretamente no arquivo web.config da aplicação:
+    <configuration>
+      <system.webServer>
+        <aspNetCore processPath="dotnet" arguments=".\VideMundus.API.dll" stdoutLogEnabled="false">
+          <environmentVariables>
+            <environmentVariable name="MUNDUS_COMPANY_CODE" value="VIDE_MUNDUS" />
+            <environmentVariable name="MUNDUS_APPLICATION_CODE" value="VIDE_MUNDUS_SITE" />
+            <environmentVariable name="MUNDUS_CLIENT_ID" value="VIDE_MUNDUS_VIDE_MUNDUS_SITE_001_M2M" />
+            <environmentVariable name="MUNDUS_CLIENT_SECRET" value="632CF113BBE24DBDA4E0814D3AF2461A" />
+            <environmentVariable name="MUNDUS_SECURITY_URL" value="https://mundussecurity.com.br" />
+          </environmentVariables>
+        </aspNetCore>
+      </system.webServer>
+    </configuration>
+
+5. AWS Lambda (.NET Core / 8 / 9)
+O cliente pode configurar as variáveis de duas formas:
+    • Via Console AWS: Acessar a Lambda ➔ Aba Configuration ➔ Environment variables ➔ Adicionar chaves e valores.
+    • Via Infrastructure as Code (AWS SAM/CloudFormation template.yaml):
+        Variables:
+          MUNDUS_COMPANY_CODE: "VIDE_MUNDUS"
+          MUNDUS_APPLICATION_CODE: "VIDE_MUNDUS_SITE"
+          MUNDUS_CLIENT_ID: "VIDE_MUNDUS_VIDE_MUNDUS_SITE_001_M2M"
+          MUNDUS_CLIENT_SECRET: "632CF113BBE24DBDA4E0814D3AF2461A"
+          MUNDUS_SECURITY_URL: "https://mundussecurity.com.br"
+
+6.  Azure Functions
+No ecossistema Microsoft Azure, as variáveis de ambiente ficam centralizadas no painel do recurso:
+No Portal Azure: Acessar a Function App ➔ Settings ➔ Environment variables ➔ Adicionar os pares chave/valor.
+Localmente (local.settings.json):
+    {
+      "Values": {
+        "MUNDUS_COMPANY_CODE": "VIDE_MUNDUS",
+        "MUNDUS_APPLICATION_CODE": "VIDE_MUNDUS_SITE",
+        "MUNDUS_CLIENT_ID": "VIDE_MUNDUS_VIDE_MUNDUS_SITE_001_M2M",
+        "MUNDUS_CLIENT_SECRET": "632CF113BBE24DBDA4E0814D3AF2461A",
+        "MUNDUS_SECURITY_URL": "https://mundussecurity.com.br"
+      }
+    }
+
+7. Google Cloud Functions (ou Google Cloud Run)
+No ecossistema do Google, o serviço de execução de contêineres/código chama-se Cloud Run ou Cloud Functions:
+    • Via Console GCP: 
+        Acessar o serviço ➔ Edit & Deploy New Revision ➔ Expandir a seção Variables & Secrets ➔ Adicionar as variáveis.
