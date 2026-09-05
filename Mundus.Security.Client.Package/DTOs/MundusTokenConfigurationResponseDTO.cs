@@ -3,8 +3,8 @@
 
 namespace Mundus.Security.Client.DTOs
 {
-    [Description("Objeto interno estendido que receberá a resposta do seu CIAM contendo o Token M2M, a JwtSecretKey " +
-        "limpa, o JwtIssuer e o TokenExpirationMinutes dinâmico do contrato")]
+    [Description("An extended internal object that will receive the response from vide mundus containing the M2M " +
+        "Token, the clean JwtSecretKey, the JwtIssuer, and the dynamic TokenExpirationMinutes from the contract.")]
     public class MundusTokenConfigurationResponseDTO
     {
         public string MachineToken { get; set; }

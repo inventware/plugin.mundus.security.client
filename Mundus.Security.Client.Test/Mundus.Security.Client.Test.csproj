@@ -8,12 +8,15 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="Mundus.Security.Client.Test\Mundus.Security.Client.Test.csproj" />
+    <Compile Remove="Mundus.Security.Client.Test\**" />
+    <EmbeddedResource Remove="Mundus.Security.Client.Test\**" />
+    <None Remove="Mundus.Security.Client.Test\**" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Moq" Version="4.20.4" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.0.3" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.1.2" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
     <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="8.0.0" />
     <PackageReference Include="MSTest.TestAdapter" Version="3.0.2" />
     <PackageReference Include="MSTest.TestFramework" Version="3.0.2" />

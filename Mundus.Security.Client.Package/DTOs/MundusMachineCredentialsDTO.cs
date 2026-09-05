@@ -3,7 +3,7 @@
 
 namespace Mundus.Security.Client.DTOs
 {
-    [Description("Objeto interno para armazenar o payload de entrada para o fluxo M2M.")]
+    [Description("Internal object to store the input payload for the M2M flow.")]
     public class MundusMachineCredentialsDTO
     {
         public string ClientId { get; set; }

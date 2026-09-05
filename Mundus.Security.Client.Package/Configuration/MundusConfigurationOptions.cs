@@ -3,18 +3,11 @@
 
 namespace Mundus.Security.Client.Configuration
 {
-    [Description("Objeto interno que mapeia e centraliza a leitura das 4 variáveis de ambiente obrigatórias " +
-        "(MUNDUS_COMPANY_CODE, MUNDUS_APPLICATION_CODE, MUNDUS_CLIENT_ID, MUNDUS_CLIENT_SECRET) direto da memória do " +
-        "processo do servidor do cliente.")]
+    [Description("Internal object that maps and centralizes the reading of the five mandatory environment variables " +
+        "(MUNDUS_COMPANY_CODE, MUNDUS_APPLICATION_CODE, MUNDUS_CLIENT_ID, MUNDUS_CLIENT_SECRET, MUNDUS_SECURITY_URL) " +
+        "directly from the client server process memory.")]
     public sealed class MundusConfigurationOptions
     {
-        public string CompanyCode { get; }
-        public string ApplicationCode { get; }
-        public string ClientId { get; }
-        public string ClientSecret { get; }
-
-        public string SecurityUrl { get; }
-
         public MundusConfigurationOptions()
         {
             CompanyCode = Environment.GetEnvironmentVariable("MUNDUS_COMPANY_CODE");
@@ -29,10 +22,20 @@ namespace Mundus.Security.Client.Configuration
                 || string.IsNullOrWhiteSpace(ClientSecret)
                 || string.IsNullOrWhiteSpace(SecurityUrl))
             {
-                throw new InvalidOperationException("(MUNDUS_INFRASTRUCTURE_ERROR) As variáveis de ambiente obrigatórias " +
-                    "para a comunicação com a plataforma mundus security (MUNDUS_COMPANY_CODE, MUNDUS_APPLICATION_CODE, " +
-                    "MUNDUS_CLIENT_ID, MUNDUS_CLIENT_SECRET, MUNDUS_SECURITY_URL) não foram encontradas ou estão vazias.");
+                throw new InvalidOperationException("(MUNDUS_INFRASTRUCTURE_ERROR) The environment variables required " +
+                    "for communication with the Mundus Security platform (MUNDUS_COMPANY_CODE, MUNDUS_APPLICATION_CODE, " +
+                    "MUNDUS_CLIENT_ID, MUNDUS_CLIENT_SECRET, MUNDUS_SECURITY_URL) were not found or are empty.");
             }
         }
+
+        public string CompanyCode { get; }
+
+        public string ApplicationCode { get; }
+
+        public string ClientId { get; }
+
+        public string ClientSecret { get; }
+
+        public string SecurityUrl { get; }
     }
 }

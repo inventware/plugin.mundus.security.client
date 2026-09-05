@@ -7,9 +7,8 @@ using System.Text.Json;
 
 namespace Mundus.Security.Client.Services
 {
-    [Description("Componente encapsulado que utiliza HttpClient de alta performance de forma segura. Realiza o " +
-        "gerenciamento de chamadas de bastidores para o endpoint /m2m/connect/token no CIAM (mundus security), " +
-        "quando ocorre um Cache Miss.")]
+    [Description("An encapsulated component that securely utilizes a high-performance HttpClient. It manages backend " +
+        "calls to the `/m2m/connect/token` endpoint in Mundus Security whenever a cache miss occurs.")]
     public class MundusM2MClient: IMundusM2MClient
     {
         private readonly HttpClient _httpClient;
@@ -29,8 +28,8 @@ namespace Mundus.Security.Client.Services
             var ciamUrl = Environment.GetEnvironmentVariable("MUNDUS_SECURITY_URL");
             if (string.IsNullOrWhiteSpace(ciamUrl))
             {
-                throw new InvalidOperationException("Erro de infraestrutura: a variável de ambiente MUNDUS_SECURITY_URL " +
-                    "não foi encontrada ou está vazia.");
+                throw new InvalidOperationException("[MUNDUS_SECURITY_ERROR] The MUNDUS_SECURITY_URL environment " +
+                    "variable was not found or is empty.");
             }
 
             var credentials = new MundusMachineCredentialsDTO
@@ -53,8 +52,8 @@ namespace Mundus.Security.Client.Services
                 PropertyNameCaseInsensitive = true
             }).ConfigureAwait(false);
 
-            return result ?? throw new InvalidOperationException("Resposta do CIAM inválida: corpo vazio ou formato " +
-                "inesperado.");
+            return result ?? throw new InvalidOperationException("[MUNDUS_SECURITY_ERROR] Invalid CIAM response: empty " +
+                "body or unexpected format.");
         }
     }
 }

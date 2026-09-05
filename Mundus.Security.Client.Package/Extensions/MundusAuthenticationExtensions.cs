@@ -14,9 +14,9 @@ using System.Text;
 
 namespace Mundus.Security.Client.Extensions
 {
-    [Description("Esta é uma classe estática que conterá o método de extensão AddMundusAuthentication(). Devendo " +
-        "interceptar o pipeline do .NET, gerenciando o cache dinâmico baseado no tempo do contrato, povoando o " +
-        "HttpContext.User com o ClaimsPrincipal do usuário autenticado.")]
+    [Description("This is a static class that will contain the `AddMundusAuthentication()` extension method. It is " +
+        "designed to intercept the .NET pipeline, manage a dynamic cache based on contract duration, and populate " +
+        "'HttpContext.User' with the authenticated user's 'ClaimsPrincipal'.")]
     public static class MundusAuthenticationExtensions
     {
         public static IServiceCollection AddMundusAuthentication(this IServiceCollection services)
@@ -38,6 +38,7 @@ namespace Mundus.Security.Client.Extensions
         private static void EnsureOptionsRegistered(IServiceCollection services)
         {
             var mundusOptions = new MundusConfigurationOptions();
+
             services.AddSingleton(mundusOptions);
 
             services.AddMemoryCache();
@@ -224,7 +225,7 @@ namespace Mundus.Security.Client.Extensions
             }
             catch
             {
-                // swallow logging errors to avoid masking original exception
+                // Swallow logging errors to avoid masking original exception.
             }
 
             try
@@ -233,7 +234,7 @@ namespace Mundus.Security.Client.Extensions
             }
             catch
             {
-                // ignore
+                // Ignore!!!
             }
         }
     }
