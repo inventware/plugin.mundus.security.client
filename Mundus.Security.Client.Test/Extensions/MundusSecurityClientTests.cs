@@ -33,7 +33,8 @@ namespace Mundus.Security.Client.Test.Extensions
         [TestMethod]
         public void MundusConfigurationOptions_ShouldThrowInvalidOperationException_WhenVariablesAreMissing()
         {
-            Assert.ThrowsException<InvalidOperationException>(() => new MundusConfigurationOptions());
+            Assert.ThrowsException<InvalidOperationException>(() => 
+                new MundusConfigurationOptions());
         }
 
 
