@@ -23,7 +23,7 @@ namespace Mundus.Security.Client.Extensions
         {
             EnsureOptionsRegistered(services);
 
-            ConfigureMundusHttpClient(services);
+            ConfigureM2MHttpClient(services);
 
             var sp = services.BuildServiceProvider();
             var httpContextAccessor = sp.GetRequiredService<IHttpContextAccessor>();
@@ -41,14 +41,15 @@ namespace Mundus.Security.Client.Extensions
 
             services.AddSingleton(mundusOptions);
 
+            services.AddHttpClient<MundusHttpClient>();
+
             services.AddMemoryCache();
 
             services.AddHttpContextAccessor();
         }
 
 
-        // Register HttpClient and configure native resilience pipeline
-        private static void ConfigureMundusHttpClient(IServiceCollection services)
+        private static void ConfigureM2MHttpClient(IServiceCollection services)
         {
             var clientBuilder = services.AddHttpClient<IMundusM2MClient, MundusM2MClient>();
 
