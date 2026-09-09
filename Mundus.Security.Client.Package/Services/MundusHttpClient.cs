@@ -144,24 +144,52 @@ namespace Mundus.Security.Client.Services
         private async Task<string?> GetMachineTokenAsync()
         {
             var tokenRequestUri = new Uri(_httpClient.BaseAddress ?? new Uri(_options.SecurityUrl), 
-                "m2m/connect/token");
+                "administration/m2m/connect/token");
 
             var credentialsPayload = new
             {
-                ClientId = _options.ClientId,
-                ApplicationCode = _options.ApplicationCode,
-                GrantType = "client_credentials"
+                applicationCode = _options.ApplicationCode,
+                companyCode = _options.CompanyCode,
+                grantType = "client_credentials",
+                clientId = _options.ClientId,
+                clientSecret = _options.ClientSecret
             };
 
-            using var tokenResponse = await _httpClient
-                .PostAsJsonAsync(tokenRequestUri, credentialsPayload)
-                .ConfigureAwait(false);
+            using var request = new HttpRequestMessage(HttpMethod.Post, tokenRequestUri);
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            request.Content = JsonContent.Create(credentialsPayload);
 
-            tokenResponse.EnsureSuccessStatusCode();
-            var tokenJson = await tokenResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
-            using var doc = JsonDocument.Parse(tokenJson);
+            HttpResponseMessage tokenResponse;
+            try
+            {
+                tokenResponse = await _httpClient.SendAsync(request).ConfigureAwait(false);
+            }
+            catch (HttpRequestException ex)
+            {
+                throw new InvalidOperationException("[MUNDUS_SECURITY_ERROR] Mundus Security platform is inaccessible.", ex);
+            }
 
-            return doc.RootElement.GetProperty("token").GetString();
+            using (tokenResponse)
+            {
+                var tokenJson = await tokenResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
+                if (!tokenResponse.IsSuccessStatusCode)
+                {
+                    throw new InvalidOperationException("[MUNDUS_SECURITY_ERROR] Token endpoint request failed. " +
+                        $"URI: '{tokenRequestUri}'. " +
+                        $"Status: {(int)tokenResponse.StatusCode} {tokenResponse.ReasonPhrase}. " +
+                        $"Response: {tokenJson}");
+                }
+
+                using var doc = JsonDocument.Parse(tokenJson);
+                if (doc.RootElement.TryGetProperty("token", out var t) ||
+                    doc.RootElement.TryGetProperty("access_token", out t))
+                {
+                    return t.GetString();
+                }
+            }
+
+            throw new InvalidOperationException("[MUNDUS_SECURITY_ERROR] Invalid token response: 'token' or " +
+                "'access_token' field missing.");
         }
 
 
