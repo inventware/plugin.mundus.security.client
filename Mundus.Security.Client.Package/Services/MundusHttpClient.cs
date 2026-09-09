@@ -31,6 +31,7 @@ namespace Mundus.Security.Client.Services
         }
 
         public string ApplicationCode => _options.ApplicationCode;
+
         public string CompanyCode => _options.CompanyCode;
 
 
@@ -142,7 +143,8 @@ namespace Mundus.Security.Client.Services
 
         private async Task<string?> GetMachineTokenAsync()
         {
-            var tokenRequestUri = new Uri(_httpClient.BaseAddress ?? new Uri(_options.SecurityUrl), "m2m/connect/token");
+            var tokenRequestUri = new Uri(_httpClient.BaseAddress ?? new Uri(_options.SecurityUrl), 
+                "m2m/connect/token");
 
             var credentialsPayload = new
             {
@@ -177,8 +179,7 @@ namespace Mundus.Security.Client.Services
                 if (headers != null && headers.TryGetValue("Authorization", out var authValues))
                 {
                     var headerValue = authValues.FirstOrDefault();
-                    if (!string.IsNullOrWhiteSpace(headerValue))
-                    {
+                    if (!string.IsNullOrWhiteSpace(headerValue)){
                         request.Headers.Authorization = AuthenticationHeaderValue.Parse(headerValue);
                     }
                 }
