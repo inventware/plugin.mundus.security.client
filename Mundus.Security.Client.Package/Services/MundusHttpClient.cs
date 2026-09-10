@@ -13,6 +13,7 @@ namespace Mundus.Security.Client.Services
         private readonly MundusConfigurationOptions _options;
         private readonly IHttpContextAccessor _httpContextAccessor;
 
+
         public MundusHttpClient(HttpClient httpClient, MundusConfigurationOptions options, 
             IHttpContextAccessor httpContextAccessor)
         {
@@ -29,6 +30,7 @@ namespace Mundus.Security.Client.Services
                 _httpClient.BaseAddress = new Uri(_options.SecurityUrl);
             }
         }
+
 
         public string ApplicationCode => _options.ApplicationCode;
 
@@ -141,12 +143,12 @@ namespace Mundus.Security.Client.Services
         }
 
 
-        private async Task<string?> GetMachineTokenAsync()
+        public async Task<string?> GetMachineTokenAsync()
         {
             var tokenRequestUri = new Uri(_httpClient.BaseAddress ?? new Uri(_options.SecurityUrl), 
                 "administration/m2m/connect/token");
 
-            var credentialsPayload = new
+            var requestCredentials = new
             {
                 applicationCode = _options.ApplicationCode,
                 companyCode = _options.CompanyCode,
@@ -157,7 +159,7 @@ namespace Mundus.Security.Client.Services
 
             using var request = new HttpRequestMessage(HttpMethod.Post, tokenRequestUri);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-            request.Content = JsonContent.Create(credentialsPayload);
+            request.Content = JsonContent.Create(requestCredentials);
 
             HttpResponseMessage tokenResponse;
             try

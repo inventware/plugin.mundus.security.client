@@ -4,8 +4,8 @@ using Mundus.Security.Client.DTOs;
 
 namespace Mundus.Security.Client.Services
 {
-    public interface IMundusM2MClient
-    {
-        Task<MundusTokenConfigurationResponseDTO> GetContractConfigurationAsync(MundusConfigurationOptions options);
-    }
+    //public interface IMundusM2MClient
+    //{
+    //    Task<MundusTokenConfigurationResponseDTO> GetContractConfigurationAsync(MundusConfigurationOptions options);
+    //}
 }

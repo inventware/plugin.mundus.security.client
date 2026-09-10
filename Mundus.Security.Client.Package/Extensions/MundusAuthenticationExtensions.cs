@@ -10,6 +10,7 @@ using Mundus.Security.Client.Services;
 using System.ComponentModel;
 using System.IdentityModel.Tokens.Jwt;
 using System.Text;
+using System.Text.Json;
 
 
 namespace Mundus.Security.Client.Extensions
@@ -23,7 +24,7 @@ namespace Mundus.Security.Client.Extensions
         {
             EnsureOptionsRegistered(services);
 
-            ConfigureM2MHttpClient(services);
+            //ConfigureM2MHttpClient(services);
 
             var sp = services.BuildServiceProvider();
             var httpContextAccessor = sp.GetRequiredService<IHttpContextAccessor>();
@@ -38,12 +39,36 @@ namespace Mundus.Security.Client.Extensions
         private static void EnsureOptionsRegistered(IServiceCollection services)
         {
             var mundusOptions = new MundusConfigurationOptions();
-
             services.AddSingleton(mundusOptions);
 
             services.AddHttpClient<MundusHttpClient>(client => {
                 client.Timeout = TimeSpan.FromMinutes(5); // Aumento temporário para 5 minutos
             });
+
+            /// ********************************************************************************
+            /// COMENTADO TEMPORARIAMENTE PARA TESTES SEM REENVIO DE REQUESTS!
+            /// 888888888888888888888888888888888888888888888888888888888888888888888888888888888
+            //services.AddHttpClient<MundusHttpClient>()
+            //    .AddStandardResilienceHandler(options => {
+            //        if (options.TotalRequestTimeout != null)
+            //            options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(15);
+
+            //        if (options.Retry != null)
+            //        {
+            //            options.Retry.MaxRetryAttempts = 3;
+            //            options.Retry.UseJitter = true;
+            //            options.Retry.Delay = TimeSpan.FromSeconds(2);
+            //        }
+
+            //        if (options.AttemptTimeout != null)
+            //            options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(5);
+
+            //        if (options.CircuitBreaker != null)
+            //        {
+            //            options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(30);
+            //            options.CircuitBreaker.FailureRatio = 0.5;
+            //        }
+            //    });
 
             services.AddMemoryCache();
 
@@ -51,47 +76,62 @@ namespace Mundus.Security.Client.Extensions
         }
 
 
-        private static void ConfigureM2MHttpClient(IServiceCollection services)
-        {
-            var clientBuilder = services.AddHttpClient<IMundusM2MClient, MundusM2MClient>();
+        //private static void EnsureOptionsRegistered(IServiceCollection services)
+        //{
+        //    var mundusOptions = new MundusConfigurationOptions();
 
-            clientBuilder.AddStandardResilienceHandler(options =>
-            {
-                // Total request timeout across retries
-                if (options.TotalRequestTimeout != null){
-                    options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(15);
-                }
+        //    services.AddSingleton(mundusOptions);
 
-                // Retry policy
-                if (options.Retry != null)
-                {
-                    options.Retry.MaxRetryAttempts = 3;
-                    options.Retry.UseJitter = true;
-                    options.Retry.Delay = TimeSpan.FromSeconds(2);
-                }
+        //    services.AddHttpClient<MundusHttpClient>(client => {
+        //        client.Timeout = TimeSpan.FromMinutes(5); // Aumento temporário para 5 minutos
+        //    });
 
-                // Per-attempt timeout
-                if (options.AttemptTimeout != null){
-                    options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(5);
-                }
+        //    services.AddMemoryCache();
 
-                // Circuit breaker
-                if (options.CircuitBreaker != null)
-                {
-                    options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(30);
-                    options.CircuitBreaker.FailureRatio = 0.5;
-                }
-            });
-        }
+        //    services.AddHttpContextAccessor();
+        //}
+
+
+        //private static void ConfigureM2MHttpClient(IServiceCollection services)
+        //{
+        //    var clientBuilder = services.AddHttpClient<IMundusM2MClient, MundusM2MClient>();
+
+        //    clientBuilder.AddStandardResilienceHandler(options =>
+        //    {
+        //        // Total request timeout across retries
+        //        if (options.TotalRequestTimeout != null){
+        //            options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(15);
+        //        }
+
+        //        // Retry policy
+        //        if (options.Retry != null)
+        //        {
+        //            options.Retry.MaxRetryAttempts = 3;
+        //            options.Retry.UseJitter = true;
+        //            options.Retry.Delay = TimeSpan.FromSeconds(2);
+        //        }
+
+        //        // Per-attempt timeout
+        //        if (options.AttemptTimeout != null){
+        //            options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(5);
+        //        }
+
+        //        // Circuit breaker
+        //        if (options.CircuitBreaker != null)
+        //        {
+        //            options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(30);
+        //            options.CircuitBreaker.FailureRatio = 0.5;
+        //        }
+        //    });
+        //}
 
 
         private static void ConfigureJwtBearerOptions(JwtBearerOptions jwtOptions, IHttpContextAccessor 
             httpContextAccessor)
         {
             jwtOptions.RequireHttpsMetadata = true;
-            jwtOptions.Events = new JwtBearerEvents
-            {
-                OnMessageReceived = context => HandleIncomingMessageAsync(context, httpContextAccessor)
+            jwtOptions.Events = new JwtBearerEvents {
+                OnMessageReceived = context => HandleIncomingMessageAsync(context)
             };
 
             jwtOptions.TokenValidationParameters = ConfigureTokenValidationParameters(httpContextAccessor);
@@ -133,8 +173,7 @@ namespace Mundus.Security.Client.Extensions
         }
 
 
-        private static async Task HandleIncomingMessageAsync(MessageReceivedContext context, 
-            IHttpContextAccessor httpContextAccessor)
+        private static async Task HandleIncomingMessageAsync(MessageReceivedContext context)
         {
             var loggerFactory = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>();
             var logger = loggerFactory.CreateLogger("MundusSecurity");
@@ -186,19 +225,46 @@ namespace Mundus.Security.Client.Extensions
                 return null;
 
             var cacheKey = $"MUNDUS_CFG_{companyCode}";
-            if (cache.TryGetValue(cacheKey, out MundusTokenConfigurationResponseDTO configuration))
-                return configuration;
+            if (cache.TryGetValue(cacheKey, out MundusTokenConfigurationResponseDTO? cachedConfiguration))
+                return cachedConfiguration;
 
-            var m2m = context.HttpContext.RequestServices.GetService<IMundusM2MClient>();
-            var opts = context.HttpContext.RequestServices.GetService<MundusConfigurationOptions>();
-            if (m2m == null || opts == null) 
+            //var m2m = context.HttpContext.RequestServices.GetService<IMundusM2MClient>();
+            //var opts = context.HttpContext.RequestServices.GetService<MundusConfigurationOptions>();
+            //if (m2m == null || opts == null) 
+            //    return null;
+
+            //configuration = await m2m.GetContractConfigurationAsync(opts).ConfigureAwait(false);
+
+            // Resolve new service - MundusHttpClient
+            var mundusHttp = context.HttpContext.RequestServices.GetService<MundusHttpClient>();
+            if (mundusHttp == null)
                 return null;
 
-            configuration = await m2m.GetContractConfigurationAsync(opts).ConfigureAwait(false);
+            var response = await mundusHttp
+                .PostToMundusSecurityAsMachineAsync<object>("m2m/connect/token", null)
+                .ConfigureAwait(false);
+
+            if (!response.IsSuccessStatusCode)
+                return null;
+
+            // Deserialise the HTTP response body that came from your CIAM (containing the MachineMachineKeysDTO)
+            var tokenJson = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            using var doc = JsonDocument.Parse(tokenJson);
+            var dtoElement = doc.RootElement.GetProperty("dto");
+
+            var configuration = new MundusTokenConfigurationResponseDTO
+            {
+                JwtSecretKey = dtoElement.GetProperty("jwtSecretKey").GetString(),
+                JwtIssuer = dtoElement.GetProperty("jwtIssuer").GetString(),
+                // Map the contract expiration time dynamically to feed your entryOptions below
+                TokenExpirationMinutes = dtoElement
+                    .TryGetProperty("tokenExpirationMinutes", out var expProp) ? expProp.GetInt32() : 30
+            };
 
             var entryOptions = new MemoryCacheEntryOptions
             {
-                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(Math.Max(1, configuration.TokenExpirationMinutes))
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(Math.Max(1, 
+                    configuration.TokenExpirationMinutes))
             };
 
             cache.Set(cacheKey, configuration, entryOptions);

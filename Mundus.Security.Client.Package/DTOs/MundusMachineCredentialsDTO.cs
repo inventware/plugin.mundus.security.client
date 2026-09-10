@@ -8,7 +8,11 @@ namespace Mundus.Security.Client.DTOs
     {
         public string ClientId { get; set; }
 
+        public string ClientSecurityKey { get; set; }
+
         public string ApplicationCode { get; set; }
+
+        public string CompanyCode { get; set; }
 
         public string GrantType { get; set; }
     }
