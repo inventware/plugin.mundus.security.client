@@ -42,7 +42,7 @@ namespace Mundus.Security.Client.Extensions
             services.AddSingleton(mundusOptions);
 
             services.AddHttpClient<MundusHttpClient>(client => {
-                client.Timeout = TimeSpan.FromMinutes(5); // Aumento temporário para 5 minutos
+                client.Timeout = TimeSpan.FromMinutes(15); // Aumento temporário para 5 minutos
             });
 
             /// ********************************************************************************
