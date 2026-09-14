@@ -42,12 +42,12 @@ namespace Mundus.Security.Client.Extensions
             services.AddSingleton(mundusOptions);
 
             services.AddHttpClient<MundusHttpClient>(client => {
-                client.Timeout = TimeSpan.FromMinutes(15); // Aumento temporário para 5 minutos
+                client.Timeout = TimeSpan.FromMinutes(15); // Aumento temporário para 15 minutos
             });
 
             /// ********************************************************************************
             /// COMENTADO TEMPORARIAMENTE PARA TESTES SEM REENVIO DE REQUESTS!
-            /// 888888888888888888888888888888888888888888888888888888888888888888888888888888888
+            /// ********************************************************************************
             //services.AddHttpClient<MundusHttpClient>()
             //    .AddStandardResilienceHandler(options => {
             //        if (options.TotalRequestTimeout != null)
@@ -74,56 +74,6 @@ namespace Mundus.Security.Client.Extensions
 
             services.AddHttpContextAccessor();
         }
-
-
-        //private static void EnsureOptionsRegistered(IServiceCollection services)
-        //{
-        //    var mundusOptions = new MundusConfigurationOptions();
-
-        //    services.AddSingleton(mundusOptions);
-
-        //    services.AddHttpClient<MundusHttpClient>(client => {
-        //        client.Timeout = TimeSpan.FromMinutes(5); // Aumento temporário para 5 minutos
-        //    });
-
-        //    services.AddMemoryCache();
-
-        //    services.AddHttpContextAccessor();
-        //}
-
-
-        //private static void ConfigureM2MHttpClient(IServiceCollection services)
-        //{
-        //    var clientBuilder = services.AddHttpClient<IMundusM2MClient, MundusM2MClient>();
-
-        //    clientBuilder.AddStandardResilienceHandler(options =>
-        //    {
-        //        // Total request timeout across retries
-        //        if (options.TotalRequestTimeout != null){
-        //            options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(15);
-        //        }
-
-        //        // Retry policy
-        //        if (options.Retry != null)
-        //        {
-        //            options.Retry.MaxRetryAttempts = 3;
-        //            options.Retry.UseJitter = true;
-        //            options.Retry.Delay = TimeSpan.FromSeconds(2);
-        //        }
-
-        //        // Per-attempt timeout
-        //        if (options.AttemptTimeout != null){
-        //            options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(5);
-        //        }
-
-        //        // Circuit breaker
-        //        if (options.CircuitBreaker != null)
-        //        {
-        //            options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(30);
-        //            options.CircuitBreaker.FailureRatio = 0.5;
-        //        }
-        //    });
-        //}
 
 
         private static void ConfigureJwtBearerOptions(JwtBearerOptions jwtOptions, IHttpContextAccessor 
