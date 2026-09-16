@@ -24,8 +24,6 @@ namespace Mundus.Security.Client.Extensions
         {
             EnsureOptionsRegistered(services);
 
-            //ConfigureM2MHttpClient(services);
-
             var sp = services.BuildServiceProvider();
             var httpContextAccessor = sp.GetRequiredService<IHttpContextAccessor>();
 
