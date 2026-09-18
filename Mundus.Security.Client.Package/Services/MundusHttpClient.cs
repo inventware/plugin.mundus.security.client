@@ -174,12 +174,12 @@ namespace Mundus.Security.Client.Services
                 var requestUri = new Uri(_httpClient.BaseAddress ?? new Uri(_options.SecurityUrl), relativePath);
                 using var request = new HttpRequestMessage(HttpMethod.Post, requestUri);
 
-                // Adds headers strictly isolated to this request.
                 request.Headers.Add("X-Application-Code", _options.ApplicationCode);
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", machineToken);
                 request.Content = JsonContent.Create(payload);
 
-                return await _httpClient.SendAsync(request).ConfigureAwait(false);
+                var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
+                return response;
             }
             catch (HttpRequestException ex)
             {
