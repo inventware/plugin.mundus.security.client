@@ -1,8 +1,5 @@
-﻿using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Http;
 using Mundus.Security.Client.Configuration;
-using Mundus.Security.Client.DTOs;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -38,6 +35,10 @@ namespace Mundus.Security.Client.Services
         public string ApplicationCode => _options.ApplicationCode;
 
         public string CompanyCode => _options.CompanyCode;
+
+        public string ClientId => _options.ClientId;
+
+        public string ClientSecret => _options.ClientSecret;
 
 
         public async Task<HttpResponseMessage> GetFromMundusSecurityAsync(string relativePath)
