@@ -9,6 +9,7 @@ using Mundus.Security.Client.DTOs;
 using Mundus.Security.Client.Services;
 using System.ComponentModel;
 using System.IdentityModel.Tokens.Jwt;
+using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 
@@ -121,6 +122,12 @@ namespace Mundus.Security.Client.Extensions
         }
 
 
+        /// <summary>
+        /// [🛡️] It serves a single purpose: ensuring that satellite api can decrypt and mathematically validate—within 
+        /// local RAM. Whether the token from an incoming user is authentic. Without this event, satellite app wouldn't 
+        /// know the `JwtSecretKey` for that company's contract needed to verify the signature of an user.
+        /// </summary>
+        /// <returns></returns>
         private static async Task HandleIncomingMessageAsync(MessageReceivedContext context)
         {
             var loggerFactory = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>();
@@ -176,26 +183,34 @@ namespace Mundus.Security.Client.Extensions
             if (cache.TryGetValue(cacheKey, out MundusTokenConfigurationResponseDTO? cachedConfiguration))
                 return cachedConfiguration;
 
-            //var m2m = context.HttpContext.RequestServices.GetService<IMundusM2MClient>();
-            //var opts = context.HttpContext.RequestServices.GetService<MundusConfigurationOptions>();
-            //if (m2m == null || opts == null) 
-            //    return null;
-
-            //configuration = await m2m.GetContractConfigurationAsync(opts).ConfigureAwait(false);
-
-            // Resolve new service - MundusHttpClient
-            var mundusHttp = context.HttpContext.RequestServices.GetService<MundusHttpClient>();
-            if (mundusHttp == null)
+            // 🌟 Native IHttpClientFactory is used to make an isolated infrastructure call, without going through
+            // the business rules and token inheritance of MundusHttpClient:
+            var httpClientFactory = context.HttpContext.RequestServices.GetRequiredService<IHttpClientFactory>();
+            var options = context.HttpContext.RequestServices.GetService<MundusConfigurationOptions>();
+            if (options == null) 
                 return null;
 
-            var response = await mundusHttp
-                .PostToMundusSecurityAsMachineAsync<object>("m2m/connect/token", null)
+            using var httpClient = httpClientFactory.CreateClient();
+            var baseUrl = options.SecurityUrl.TrimEnd('/');
+            var targetUrl = $"{baseUrl}api/v1/administration/m2m/connect/token";
+
+            var credentialsPayload = new
+            {
+                applicationCode = options.ApplicationCode,
+                companyCode = options.CompanyCode,
+                grantType = "client_credentials",
+                clientId = options.ClientId,
+                clientSecret = options.ClientSecret
+            };
+
+            using var response = await httpClient
+                .PostAsJsonAsync(targetUrl, credentialsPayload)
                 .ConfigureAwait(false);
 
             if (!response.IsSuccessStatusCode)
                 return null;
 
-            // Deserialise the HTTP response body that came from your CIAM (containing the MachineMachineKeysDTO)
+            // Deserialise the HTTP response body that came from mundus security (containing the MachineMachineKeysDTO)
             var tokenJson = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
             using var doc = JsonDocument.Parse(tokenJson);
             var dtoElement = doc.RootElement.GetProperty("dto");
