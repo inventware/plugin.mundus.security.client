@@ -179,8 +179,7 @@ namespace Mundus.Security.Client.Services
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", machineToken);
                 request.Content = JsonContent.Create(payload);
 
-                var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
-                return response;
+                return await _httpClient.SendAsync(request).ConfigureAwait(false);
             }
             catch (HttpRequestException ex)
             {

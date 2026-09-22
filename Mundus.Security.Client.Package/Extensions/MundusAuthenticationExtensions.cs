@@ -101,7 +101,8 @@ namespace Mundus.Security.Client.Extensions
                 {
                     var http = httpContextAccessor.HttpContext;
                     var key = http?.Items["Mundus_SecurityKey"] as SymmetricSecurityKey;
-                    if (key == null) return Enumerable.Empty<SecurityKey>();
+                    if (key == null) 
+                        return Enumerable.Empty<SecurityKey>();
                     return new[] { key };
                 },
 
@@ -109,7 +110,8 @@ namespace Mundus.Security.Client.Extensions
                 {
                     var http = httpContextAccessor.HttpContext;
                     var expected = http?.Items["Mundus_Audiences"] as string[];
-                    if (expected == null || expected.Length == 0) return false;
+                    if (expected == null || expected.Length == 0) 
+                        return false;
                     return audiences.Any(a => expected.Contains(a, StringComparer.OrdinalIgnoreCase));
                 },
 
@@ -192,7 +194,7 @@ namespace Mundus.Security.Client.Extensions
 
             using var httpClient = httpClientFactory.CreateClient();
             var baseUrl = options.SecurityUrl.TrimEnd('/');
-            var targetUrl = $"{baseUrl}api/v1/administration/m2m/connect/token";
+            var targetUrl = $"{baseUrl}/api/v1/administration/m2m/connect/token";
 
             var credentialsPayload = new
             {
@@ -210,7 +212,17 @@ namespace Mundus.Security.Client.Extensions
             if (!response.IsSuccessStatusCode)
                 return null;
 
-            // Deserialise the HTTP response body that came from mundus security (containing the MachineMachineKeysDTO)
+            var (configuration, entryOptions) = await DeserialiseHttpResponseBody(response).ConfigureAwait(false);
+
+            cache.Set(cacheKey, configuration, entryOptions);
+
+            return configuration;
+        }
+
+
+        private static async Task<(MundusTokenConfigurationResponseDTO?, MemoryCacheEntryOptions)> 
+            DeserialiseHttpResponseBody(HttpResponseMessage response)
+        {
             var tokenJson = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
             using var doc = JsonDocument.Parse(tokenJson);
             var dtoElement = doc.RootElement.GetProperty("dto");
@@ -226,13 +238,11 @@ namespace Mundus.Security.Client.Extensions
 
             var entryOptions = new MemoryCacheEntryOptions
             {
-                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(Math.Max(1, 
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(Math.Max(1,
                     configuration.TokenExpirationMinutes))
             };
 
-            cache.Set(cacheKey, configuration, entryOptions);
-
-            return configuration;
+            return (configuration, entryOptions);
         }
 
 
