@@ -220,20 +220,32 @@ namespace Mundus.Security.Client.Extensions
         }
 
 
-        private static async Task<(MundusTokenConfigurationResponseDTO?, MemoryCacheEntryOptions)> 
+        private static async Task<(MundusTokenConfigurationResponseDTO?, MemoryCacheEntryOptions)>
             DeserialiseHttpResponseBody(HttpResponseMessage response)
         {
             var tokenJson = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
             using var doc = JsonDocument.Parse(tokenJson);
-            var dtoElement = doc.RootElement.GetProperty("dto");
+            var jsonElement = doc.RootElement.GetProperty("dto");
+
+            string rawIssuerAndAudiences = jsonElement.GetProperty("jwtIssuer").GetString() 
+                ?? string.Empty;
+
+            string[] urlsArray = rawIssuerAndAudiences
+                .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(url => url.Trim())
+                .ToArray();
+
+            string mainIssuer = urlsArray.FirstOrDefault() 
+                ?? rawIssuerAndAudiences;
 
             var configuration = new MundusTokenConfigurationResponseDTO
             {
-                JwtSecretKey = dtoElement.GetProperty("jwtSecretKey").GetString(),
-                JwtIssuer = dtoElement.GetProperty("jwtIssuer").GetString(),
-                // Map the contract expiration time dynamically to feed your entryOptions below
-                TokenExpirationMinutes = dtoElement
-                    .TryGetProperty("tokenExpirationMinutes", out var expProp) ? expProp.GetInt32() : 30
+                JwtSecretKey = jsonElement.GetProperty("jwtSecretKey").GetString(),
+                JwtIssuer = mainIssuer,     // .NET requires a unique string Issuer for ValidIssuer
+                Urls = urlsArray,           // Feeding the property with the real array dismembered!
+                TokenExpirationMinutes = jsonElement.TryGetProperty("tokenExpirationMinutes", out var expProp) 
+                    ? expProp.GetInt32() 
+                    : 30
             };
 
             var entryOptions = new MemoryCacheEntryOptions
