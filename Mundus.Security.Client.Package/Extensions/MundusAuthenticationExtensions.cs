@@ -9,7 +9,6 @@ using Mundus.Security.Client.DTOs;
 using Mundus.Security.Client.Services;
 using System.ComponentModel;
 using System.IdentityModel.Tokens.Jwt;
-using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 
@@ -132,6 +131,18 @@ namespace Mundus.Security.Client.Extensions
         /// <returns></returns>
         private static async Task HandleIncomingMessageAsync(MessageReceivedContext context)
         {
+            // 🌟 If the active request is for anonymous public routes — WITHOUT a JWT token — the request body stream
+            // cannot be readed, ensuring that the JSON arrives at Mundus Security 100% intact and fully populated.
+            if (context.Request.Headers == null || 
+                !context.Request.Headers.TryGetValue("Authorization", out var authValues))
+            {
+                return;
+            }
+
+            if (context.Request.Path.Value!.EndsWith("/login", StringComparison.OrdinalIgnoreCase)){
+                return;
+            }
+
             var loggerFactory = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>();
             var logger = loggerFactory.CreateLogger("MundusSecurity");
 
@@ -146,14 +157,15 @@ namespace Mundus.Security.Client.Extensions
                 var token = auth.Substring("Bearer ".Length).Trim();
                 context.Token = token;
 
-                JwtSecurityToken jwt;
-                try
+                JwtSecurityToken jwt = await MathValidateAndDeserialiseJwtSecurityToken(token);
+                if (jwt == null) 
+                    return;
+
+                // 🎯 Comparing the 'exp' claim against the current server UTC clock. If the token has expired, the
+                // request is aborted IMMEDIATELY in local RAM, saving network calls and potential database round-trips!
+                if (jwt.ValidTo < DateTime.UtcNow)
                 {
-                    var handler = new JwtSecurityTokenHandler();
-                    jwt = handler.ReadJwtToken(token);
-                }
-                catch
-                {
+                    context.Fail("The sended token has expired. Access denied due to timeout.");
                     return;
                 }
 
@@ -174,6 +186,25 @@ namespace Mundus.Security.Client.Extensions
         }
 
 
+        private static async Task<JwtSecurityToken> MathValidateAndDeserialiseJwtSecurityToken(string token)
+        {
+            if (string.IsNullOrEmpty(token))
+                return null;
+
+            JwtSecurityToken jwt;
+            try
+            {
+                var handler = new JwtSecurityTokenHandler();
+                jwt = handler.ReadJwtToken(token);
+            }
+            catch
+            {
+                return null;
+            }
+            return jwt;
+        }
+
+
         private static async Task<MundusTokenConfigurationResponseDTO?> FetchAndCacheConfigurationAsync(
             MessageReceivedContext context, string companyCode)
         {
@@ -181,32 +212,41 @@ namespace Mundus.Security.Client.Extensions
             if (cache == null) 
                 return null;
 
-            var cacheKey = $"MUNDUS_CFG_{companyCode}";
+            var cacheKey = $"MUNDUS_CFG_{companyCode.ToUpper()}";
             if (cache.TryGetValue(cacheKey, out MundusTokenConfigurationResponseDTO? cachedConfiguration))
                 return cachedConfiguration;
 
+            // 🎯 Invocando o cliente injetado para fazer o fluxo M2M correto de duas etapas (conforme mercado):
+            var mundusClient = context.HttpContext.RequestServices.GetRequiredService<MundusHttpClient>();
+
+
             // 🌟 Native IHttpClientFactory is used to make an isolated infrastructure call, without going through
             // the business rules and token inheritance of MundusHttpClient:
-            var httpClientFactory = context.HttpContext.RequestServices.GetRequiredService<IHttpClientFactory>();
-            var options = context.HttpContext.RequestServices.GetService<MundusConfigurationOptions>();
-            if (options == null) 
-                return null;
+            //var httpClientFactory = context.HttpContext.RequestServices.GetRequiredService<IHttpClientFactory>();
+            //var options = context.HttpContext.RequestServices.GetService<MundusConfigurationOptions>();
+            //if (options == null) 
+            //    return null;
 
-            using var httpClient = httpClientFactory.CreateClient();
-            var baseUrl = options.SecurityUrl.TrimEnd('/');
-            var targetUrl = $"{baseUrl}/api/v1/administration/m2m/connect/token";
+            //using var httpClient = httpClientFactory.CreateClient();
+            //var baseUrl = options.SecurityUrl.TrimEnd('/');
+            //var targetUrl = $"{baseUrl}/api/v1/administration/m2m/connect/token";
 
-            var credentialsPayload = new
-            {
-                applicationCode = options.ApplicationCode,
-                companyCode = options.CompanyCode,
-                grantType = "client_credentials",
-                clientId = options.ClientId,
-                clientSecret = options.ClientSecret
-            };
+            //var credentialsPayload = new
+            //{
+            //    applicationCode = options.ApplicationCode,
+            //    companyCode = options.CompanyCode,
+            //    grantType = "client_credentials",
+            //    clientId = options.ClientId,
+            //    clientSecret = options.ClientSecret
+            //};
 
-            using var response = await httpClient
-                .PostAsJsonAsync(targetUrl, credentialsPayload)
+            //using var response = await httpClient
+            //    .PostAsJsonAsync(targetUrl, credentialsPayload)
+            //    .ConfigureAwait(false);
+
+            // 🎯 Chamada para 'handshake-settings', onde o gateway autentica o robô e o banco devolve o DTO seguro:
+            var response = await mundusClient
+                .GetFromMundusSecurityAsMachineAsync<object>("api/v1/administration/handshake-settings", null)
                 .ConfigureAwait(false);
 
             if (!response.IsSuccessStatusCode)

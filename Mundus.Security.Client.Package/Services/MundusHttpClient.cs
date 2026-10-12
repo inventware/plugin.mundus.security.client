@@ -1,7 +1,9 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Mundus.Security.Client.Configuration;
+using Polly.Caching;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 
 
@@ -147,7 +149,12 @@ namespace Mundus.Security.Client.Services
             using var request = new HttpRequestMessage(HttpMethod.Post, requestUri);
 
             PrepareRequestHeaders(request);
-            request.Content = JsonContent.Create(payload);
+
+            // Explicitly serializing the JSON to a string in RAM before sending. This forces .NET to populate the
+            // exact 'Content-Length' header (in bytes) and disables 'Transfer-Encoding: chunked', thereby avoiding
+            // issues with stream parsing on the Mundus Security server.
+            string jsonString = JsonSerializer.Serialize(payload);
+            request.Content = new StringContent(jsonString, Encoding.UTF8, "application/json");
 
             try
             {
@@ -292,9 +299,16 @@ namespace Mundus.Security.Client.Services
 
             using var request = new HttpRequestMessage(HttpMethod.Post, tokenRequestUri);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-            request.Content = JsonContent.Create(requestCredentials);
+            
+            // 🎯 Forçando a serialização em bloco sólido na memória RAM (Chunked):
+            string jsonString = JsonSerializer.Serialize(requestCredentials);
+            //request.Content = new StringContent(jsonString, Encoding.UTF8, "application/json");
+            // 🎯 Forçando o CONTENT-TYPE PURO: Removendo o charset do header para não confundir o Gateway do Servidor
+            request.Content = new StringContent(jsonString, Encoding.UTF8, "application/json");
+            request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
 
             HttpResponseMessage tokenResponse;
+
             try
             {
                 tokenResponse = await _httpClient.SendAsync(request).ConfigureAwait(false);
@@ -304,6 +318,12 @@ namespace Mundus.Security.Client.Services
                 throw new InvalidOperationException("[MUNDUS_SECURITY_ERROR] Mundus Security platform is inaccessible.", ex);
             }
 
+            return await ParseTokenResponse(tokenResponse, tokenRequestUri);
+        }
+
+
+        private async Task<string?> ParseTokenResponse(HttpResponseMessage tokenResponse, Uri? tokenRequestUri)
+        {
             using (tokenResponse)
             {
                 var tokenJson = await tokenResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
@@ -315,11 +335,11 @@ namespace Mundus.Security.Client.Services
                         $"Response: {tokenJson}");
                 }
 
-                using var doc = JsonDocument.Parse(tokenJson);
-                if (doc.RootElement.TryGetProperty("token", out var t) ||
-                    doc.RootElement.TryGetProperty("access_token", out t))
+                using var tokenProperties = JsonDocument.Parse(tokenJson);
+                if (tokenProperties.RootElement.TryGetProperty("token", out var accessToken) ||
+                    tokenProperties.RootElement.TryGetProperty("access_token", out accessToken))
                 {
-                    return t.GetString();
+                    return accessToken.GetString();
                 }
             }
 

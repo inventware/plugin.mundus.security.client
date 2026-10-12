@@ -10,11 +10,11 @@ namespace Mundus.Security.Client.Configuration
     {
         public MundusConfigurationOptions()
         {
-            CompanyCode = Environment.GetEnvironmentVariable("MUNDUS_COMPANY_CODE");
-            ApplicationCode = Environment.GetEnvironmentVariable("MUNDUS_APPLICATION_CODE");
-            ClientId = Environment.GetEnvironmentVariable("MUNDUS_CLIENT_ID");
-            ClientSecret = Environment.GetEnvironmentVariable("MUNDUS_CLIENT_SECRET");
-            SecurityUrl = Environment.GetEnvironmentVariable("MUNDUS_SECURITY_URL");
+            CompanyCode = GetMundusSecurityEnvironmentVariable("MUNDUS_COMPANY_CODE");
+            ApplicationCode = GetMundusSecurityEnvironmentVariable("MUNDUS_APPLICATION_CODE");
+            ClientId = GetMundusSecurityEnvironmentVariable("MUNDUS_CLIENT_ID");
+            ClientSecret = GetMundusSecurityEnvironmentVariable("MUNDUS_CLIENT_SECRET");
+            SecurityUrl = GetMundusSecurityEnvironmentVariable("MUNDUS_SECURITY_URL");
 
             if (string.IsNullOrWhiteSpace(CompanyCode)
                 || string.IsNullOrWhiteSpace(ApplicationCode)
@@ -27,6 +27,26 @@ namespace Mundus.Security.Client.Configuration
                     "MUNDUS_CLIENT_ID, MUNDUS_CLIENT_SECRET, MUNDUS_SECURITY_URL) were not found or are empty.");
             }
         }
+
+        private static string? GetMundusSecurityEnvironmentVariable(string name)
+        {
+            // It try to read from the Process (Default for Docker, Linux, Cloud and IIS)
+            string? value = Environment.GetEnvironmentVariable(name);
+
+            // If running on Windows and not found (or outdated in the IDE cache), read from the Machine
+            if (OperatingSystem.IsWindows())
+            {
+                var updatedValue = Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.Machine);
+                if ((string.IsNullOrWhiteSpace(value)) || 
+                    (!string.IsNullOrWhiteSpace(value) && !string.IsNullOrWhiteSpace(updatedValue) && value != updatedValue))
+                {
+                    value = updatedValue;
+                }
+            }
+
+            return value;
+        }
+
 
         public string CompanyCode { get; }
 
