@@ -120,8 +120,8 @@ namespace Mundus.Security.Client.Services
 
                     if (!string.IsNullOrWhiteSpace(queryString))
                     {
-                        cleanPath = relativePath.Contains("?")
-                            ? $"{relativePath}&{queryString}"
+                        cleanPath = relativePath.Contains("?") 
+                            ? $"{relativePath}&{queryString}" 
                             : $"{relativePath}?{queryString}";
                     }
                 }
@@ -129,6 +129,7 @@ namespace Mundus.Security.Client.Services
                 // Combines final URI with a Query String generated.
                 var requestUri = new Uri(_httpClient.BaseAddress ?? new Uri(_options.SecurityUrl), cleanPath);
                 using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
+
                 request.Headers.Add("X-Application-Code", _options.ApplicationCode);
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", machineToken);
 
@@ -184,9 +185,14 @@ namespace Mundus.Security.Client.Services
 
                 request.Headers.Add("X-Application-Code", _options.ApplicationCode);
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", machineToken);
-                request.Content = JsonContent.Create(payload);
 
-                return await _httpClient.SendAsync(request).ConfigureAwait(false);
+                // 🎯 CHUNKED M2M POST: Serializing in memory, eliminating the fragmented stream:
+                string jsonString = JsonSerializer.Serialize(payload);
+                request.Content = new StringContent(jsonString, Encoding.UTF8, "application/json");
+                request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+
+                var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
+                return response;
             }
             catch (HttpRequestException ex)
             {
