@@ -1,6 +1,5 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Mundus.Security.Client.Configuration;
-using Polly.Caching;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
@@ -48,7 +47,7 @@ namespace Mundus.Security.Client.Services
             var requestUri = new Uri(_httpClient.BaseAddress ?? new Uri(_options.SecurityUrl), relativePath);
             using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
 
-            PrepareRequestHeaders(request);
+            PrepareRequestHeaders(request, attachUserToken: true);
 
             try
             {
@@ -149,7 +148,7 @@ namespace Mundus.Security.Client.Services
             var requestUri = new Uri(_httpClient.BaseAddress ?? new Uri(_options.SecurityUrl), relativePath);
             using var request = new HttpRequestMessage(HttpMethod.Post, requestUri);
 
-            PrepareRequestHeaders(request);
+            PrepareRequestHeaders(request, attachUserToken: true);
 
             // Explicitly serializing the JSON to a string in RAM before sending. This forces .NET to populate the
             // exact 'Content-Length' header (in bytes) and disables 'Transfer-Encoding: chunked', thereby avoiding
@@ -207,7 +206,8 @@ namespace Mundus.Security.Client.Services
             var requestUri = new Uri(_httpClient.BaseAddress ?? new Uri(_options.SecurityUrl), relativePath);
             using var request = new HttpRequestMessage(HttpMethod.Put, requestUri);
 
-            PrepareRequestHeaders(request);
+            PrepareRequestHeaders(request, attachUserToken: true);
+
             request.Content = JsonContent.Create(payload);
 
             try
@@ -227,7 +227,7 @@ namespace Mundus.Security.Client.Services
             var requestUri = new Uri(_httpClient.BaseAddress ?? new Uri(_options.SecurityUrl), relativePath);
             using var request = new HttpRequestMessage(HttpMethod.Delete, requestUri);
 
-            PrepareRequestHeaders(request);
+            PrepareRequestHeaders(request, attachUserToken: true);
 
             try
             {
@@ -246,7 +246,8 @@ namespace Mundus.Security.Client.Services
             var requestUri = new Uri(_httpClient.BaseAddress ?? new Uri(_options.SecurityUrl), relativePath);
             using var request = new HttpRequestMessage(HttpMethod.Delete, requestUri);
 
-            PrepareRequestHeaders(request);
+            PrepareRequestHeaders(request, attachUserToken: true);
+
             request.Content = JsonContent.Create(payload);
 
             try
@@ -261,12 +262,17 @@ namespace Mundus.Security.Client.Services
         }
 
 
-        private void PrepareRequestHeaders(HttpRequestMessage request)
+        private void PrepareRequestHeaders(HttpRequestMessage request, bool attachUserToken = true)
         {
             // Adds X-Application-Code isolated to this request message.
             if (!string.IsNullOrWhiteSpace(_options.ApplicationCode)){
                 request.Headers.Add("X-Application-Code", _options.ApplicationCode);
             }
+
+            // 🎯 SAFETY GUARD: Prevents the authentication token from being attached to the outgoing request, avoiding
+            // false-positive 400/401 errors at the gateway.
+            if (!attachUserToken)
+                return;
 
             // Copies the logged-in user token, if present, isolated to this request message.
             try
@@ -275,8 +281,7 @@ namespace Mundus.Security.Client.Services
                 if (headers != null && headers.TryGetValue("Authorization", out var authValues))
                 {
                     var headerValue = authValues.FirstOrDefault();
-                    if (!string.IsNullOrWhiteSpace(headerValue))
-                    {
+                    if (!string.IsNullOrWhiteSpace(headerValue)){
                         request.Headers.Authorization = AuthenticationHeaderValue.Parse(headerValue);
                     }
                 }
