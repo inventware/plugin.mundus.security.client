@@ -9,6 +9,8 @@ using Mundus.Security.Client.DTOs;
 using Mundus.Security.Client.Services;
 using System.ComponentModel;
 using System.IdentityModel.Tokens.Jwt;
+using System.Net.Http.Json;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 
@@ -86,43 +88,6 @@ namespace Mundus.Security.Client.Extensions
         }
 
 
-        private static TokenValidationParameters ConfigureTokenValidationParameters(IHttpContextAccessor 
-            httpContextAccessor)
-        {
-            return new TokenValidationParameters
-            {
-                ValidateIssuer = true,
-                ValidateAudience = true,
-                ValidateIssuerSigningKey = true,
-                ValidateLifetime = true,
-
-                IssuerSigningKeyResolver = (token, securityToken, kid, parameters) =>
-                {
-                    var http = httpContextAccessor.HttpContext;
-                    var key = http?.Items["Mundus_SecurityKey"] as SymmetricSecurityKey;
-                    if (key == null) 
-                        return Enumerable.Empty<SecurityKey>();
-                    return new[] { key };
-                },
-
-                AudienceValidator = (audiences, securityToken, validationParameters) =>
-                {
-                    var http = httpContextAccessor.HttpContext;
-                    var expected = http?.Items["Mundus_Audiences"] as string[];
-                    if (expected == null || expected.Length == 0) 
-                        return false;
-                    return audiences.Any(a => expected.Contains(a, StringComparer.OrdinalIgnoreCase));
-                },
-
-                IssuerValidator = (issuer, securityToken, validationParameters) =>
-                {
-                    var http = httpContextAccessor.HttpContext;
-                    return http?.Items["Mundus_Issuer"] as string ?? issuer;
-                }
-            };
-        }
-
-
         /// <summary>
         /// [🛡️] It serves a single purpose: ensuring that satellite api can decrypt and mathematically validate—within 
         /// local RAM. Whether the token from an incoming user is authentic. Without this event, satellite app wouldn't 
@@ -148,7 +113,7 @@ namespace Mundus.Security.Client.Extensions
 
             try
             {
-                // extract token
+                // Extract token:
                 var auth = context.Request.Headers["Authorization"].FirstOrDefault();
                 if (string.IsNullOrWhiteSpace(auth) || !auth.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)){
                     return;
@@ -216,47 +181,75 @@ namespace Mundus.Security.Client.Extensions
             if (cache.TryGetValue(cacheKey, out MundusTokenConfigurationResponseDTO? cachedConfiguration))
                 return cachedConfiguration;
 
-            // 🎯 Invocando o cliente injetado para fazer o fluxo M2M correto de duas etapas (conforme mercado):
-            var mundusClient = context.HttpContext.RequestServices.GetRequiredService<MundusHttpClient>();
+            // 🎯 Invoking the injected client to make the correct two-step M2M flow (as per market):
+            //var mundusClient = context.HttpContext.RequestServices.GetRequiredService<MundusHttpClient>();
 
 
-            // 🌟 Native IHttpClientFactory is used to make an isolated infrastructure call, without going through
+            // 🎯 Native IHttpClientFactory is used to make an isolated infrastructure call, without going through
             // the business rules and token inheritance of MundusHttpClient:
-            //var httpClientFactory = context.HttpContext.RequestServices.GetRequiredService<IHttpClientFactory>();
-            //var options = context.HttpContext.RequestServices.GetService<MundusConfigurationOptions>();
-            //if (options == null) 
-            //    return null;
-
-            //using var httpClient = httpClientFactory.CreateClient();
-            //var baseUrl = options.SecurityUrl.TrimEnd('/');
-            //var targetUrl = $"{baseUrl}/api/v1/administration/m2m/connect/token";
-
-            //var credentialsPayload = new
-            //{
-            //    applicationCode = options.ApplicationCode,
-            //    companyCode = options.CompanyCode,
-            //    grantType = "client_credentials",
-            //    clientId = options.ClientId,
-            //    clientSecret = options.ClientSecret
-            //};
-
-            //using var response = await httpClient
-            //    .PostAsJsonAsync(targetUrl, credentialsPayload)
-            //    .ConfigureAwait(false);
-
-            // 🎯 Chamada para 'handshake-settings', onde o gateway autentica o robô e o banco devolve o DTO seguro:
-            var response = await mundusClient
-                .GetFromMundusSecurityAsMachineAsync<object>("api/v1/administration/handshake-settings", null)
-                .ConfigureAwait(false);
-
-            if (!response.IsSuccessStatusCode)
+            var httpClientFactory = context.HttpContext.RequestServices.GetRequiredService<IHttpClientFactory>();
+            var options = context.HttpContext.RequestServices.GetService<MundusConfigurationOptions>();
+            if (options == null) 
                 return null;
 
-            var (configuration, entryOptions) = await DeserialiseHttpResponseBody(response).ConfigureAwait(false);
+            try
+            {
+                using var httpClient = httpClientFactory.CreateClient();
+                var baseUrl = options.SecurityUrl.TrimEnd('/');
 
-            cache.Set(cacheKey, configuration, entryOptions);
+                // 1. First step of the handshake: Search for a clean and straight MACHINE TOKEN:
+                var m2mTokenUrl = $"{baseUrl}/api/v1/administration/m2m/connect/token";
 
-            return configuration;
+                var credentialspayload = new
+                {
+                    applicationCode = options.ApplicationCode,
+                    companyCode = options.CompanyCode,
+                    grantType = "client_credentials",
+                    clientId = options.ClientId,
+                    clientSecret = options.ClientSecret
+                };
+
+                using var m2mTokenResponse = await httpClient
+                    .PostAsJsonAsync(m2mTokenUrl, credentialspayload)
+                    .ConfigureAwait(false);
+                if (!m2mTokenResponse.IsSuccessStatusCode) 
+                    return null;
+
+                var m2mTokenJson = await m2mTokenResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
+                using var m2mTokenDoc = JsonDocument.Parse(m2mTokenJson);
+                string? machineToken = null;
+                if (m2mTokenDoc.RootElement.TryGetProperty("token", out var tokenProperty) || 
+                    m2mTokenDoc.RootElement.TryGetProperty("access_token", out tokenProperty))
+                {
+                    machineToken = tokenProperty.GetString();
+                }
+                if (string.IsNullOrWhiteSpace(machineToken)) 
+                    return null;
+
+
+                // 2. Second step of the handshake: Fetch the contract settings by passing the machine token in the
+                // isolated header:
+                var handshakeUrl = $"{baseUrl}/api/v1/administration/handshake-settings";
+                using var handshakeRequest = new HttpRequestMessage(HttpMethod.Get, handshakeUrl);
+                handshakeRequest.Headers.Add("X-Application-Code", options.ApplicationCode);
+                handshakeRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", machineToken);
+
+                using var handshakeResponse = await httpClient.SendAsync(handshakeRequest).ConfigureAwait(false);
+                if (!handshakeResponse.IsSuccessStatusCode)
+                    return null;
+
+                var (configuration, entryOptions) = await DeserialiseHttpResponseBody(handshakeResponse)
+                    .ConfigureAwait(false);
+
+                cache.Set(cacheKey, configuration, entryOptions);
+
+                return configuration;
+            }
+            catch
+            {
+                return null;
+            }
+            
         }
 
 
@@ -330,6 +323,43 @@ namespace Mundus.Security.Client.Extensions
             {
                 // Ignore!!!
             }
+        }
+
+
+        private static TokenValidationParameters ConfigureTokenValidationParameters(IHttpContextAccessor
+            httpContextAccessor)
+        {
+            return new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateIssuerSigningKey = true,
+                ValidateLifetime = true,
+
+                IssuerSigningKeyResolver = (token, securityToken, kid, parameters) =>
+                {
+                    var http = httpContextAccessor.HttpContext;
+                    var key = http?.Items["Mundus_SecurityKey"] as SymmetricSecurityKey;
+                    if (key == null)
+                        return Enumerable.Empty<SecurityKey>();
+                    return new[] { key };
+                },
+
+                AudienceValidator = (audiences, securityToken, validationParameters) =>
+                {
+                    var http = httpContextAccessor.HttpContext;
+                    var expected = http?.Items["Mundus_Audiences"] as string[];
+                    if (expected == null || expected.Length == 0)
+                        return false;
+                    return audiences.Any(a => expected.Contains(a, StringComparer.OrdinalIgnoreCase));
+                },
+
+                IssuerValidator = (issuer, securityToken, validationParameters) =>
+                {
+                    var http = httpContextAccessor.HttpContext;
+                    return http?.Items["Mundus_Issuer"] as string ?? issuer;
+                }
+            };
         }
     }
 }

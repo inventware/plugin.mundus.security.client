@@ -107,7 +107,7 @@ namespace Mundus.Security.Client.Services
                         "Mundus Security.");
                 }
 
-                // Converts DTO properties into a query string (?Param1=Valor1&Param2=Valor2)
+                // Converts DTO properties into a query string (?Param1=Value1&Param2=Value2)
                 var cleanPath = relativePath;
                 if (queryParameters != null)
                 {
@@ -264,8 +264,7 @@ namespace Mundus.Security.Client.Services
         private void PrepareRequestHeaders(HttpRequestMessage request)
         {
             // Adds X-Application-Code isolated to this request message.
-            if (!string.IsNullOrWhiteSpace(_options.ApplicationCode))
-            {
+            if (!string.IsNullOrWhiteSpace(_options.ApplicationCode)){
                 request.Headers.Add("X-Application-Code", _options.ApplicationCode);
             }
 
