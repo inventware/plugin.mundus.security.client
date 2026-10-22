@@ -63,21 +63,17 @@ namespace Mundus.Security.Client.Services
 
         /// <summary>
         /// This method can receive any DTO object in a GET method and automatically transform it into a Query String
-        /// [FromQuery]. Sample of usage:
-        ///     [HttpGet("get-machine-credentials")]
-        //      public async Task<IActionResult> CheckDomain([FromQuery] MundusMachineCredentialsDTO dto)
-        //      {
-        //          var path = "api/v1/application/check-if-it-is-a-public-domain";
-        //          var response = await GetFromMundusSecurityAsync(path, dto);
-        //          ...
-        //      }
+        /// [FromQuery]. 
         /// </summary>
-        /// <returns></returns>
         public async Task<HttpResponseMessage> GetFromMundusSecurityAsync<T>(string relativePath, T queryParameters) 
             where T : class
         {
+            if (queryParameters == null){
+                return await GetFromMundusSecurityAsync(relativePath).ConfigureAwait(false);
+            }
+
             // Automatically converts DTO properties into a query string.
-            var properties = from p in typeof(T).GetProperties()
+            var properties = from p in queryParameters.GetType().GetProperties()
                              let value = p.GetValue(queryParameters, null)
                              where value != null
                              select $"{p.Name}={Uri.EscapeDataString(value.ToString()!)}";
@@ -85,12 +81,26 @@ namespace Mundus.Security.Client.Services
             var queryString = string.Join("&", properties);
 
             // Combines the path with the query string and the generated parameters.
-            var cleanPath = relativePath.Contains("?")
+            var cleanPath = relativePath;
+            if (!string.IsNullOrWhiteSpace(queryString))
+            {
+                cleanPath = relativePath.Contains("?")
                 ? $"{relativePath}&{queryString}"
                 : $"{relativePath}?{queryString}";
+            }
+
+            var requestUri = new Uri(_httpClient.BaseAddress 
+                ?? new Uri(_options.SecurityUrl), cleanPath);
+
+            using var request =
+                new HttpRequestMessage(HttpMethod.Get, requestUri);
+
+            PrepareRequestHeaders(request);
+
+            return await _httpClient.SendAsync(request);
 
             // Dispatches to the agnostic GET method that is already protected and resilient.
-            return await GetFromMundusSecurityAsync(cleanPath).ConfigureAwait(false);
+            //return await GetFromMundusSecurityAsync(cleanPath).ConfigureAwait(false);
         }
 
 

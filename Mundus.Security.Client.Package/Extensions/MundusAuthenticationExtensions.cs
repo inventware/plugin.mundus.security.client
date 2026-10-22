@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,8 +10,8 @@ using Mundus.Security.Client.DTOs;
 using Mundus.Security.Client.Services;
 using System.ComponentModel;
 using System.IdentityModel.Tokens.Jwt;
-using System.Net.Http.Json;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 
@@ -123,7 +124,7 @@ namespace Mundus.Security.Client.Extensions
                 context.Token = token;
 
                 JwtSecurityToken jwt = await MathValidateAndDeserialiseJwtSecurityToken(token);
-                if (jwt == null) 
+                if (jwt == null)
                     return;
 
                 // 🎯 Comparing the 'exp' claim against the current server UTC clock. If the token has expired, the
@@ -360,6 +361,15 @@ namespace Mundus.Security.Client.Extensions
                     return http?.Items["Mundus_Issuer"] as string ?? issuer;
                 }
             };
+        }
+
+
+        public static IApplicationBuilder UseMundusAuthentication(this IApplicationBuilder app)
+        {
+            app.UseAuthentication();
+            app.UseAuthorization();
+
+            return app;
         }
     }
 }
