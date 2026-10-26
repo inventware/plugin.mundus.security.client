@@ -42,7 +42,8 @@ namespace Mundus.Security.Client.Extensions
             var mundusOptions = new MundusConfigurationOptions();
             services.AddSingleton(mundusOptions);
 
-            services.AddHttpClient<MundusHttpClient>(client => {
+            services.AddHttpClient<MundusHttpClient>(client =>
+            {
                 client.Timeout = TimeSpan.FromMinutes(15); // Aumento temporário para 15 minutos
             });
 
@@ -50,7 +51,8 @@ namespace Mundus.Security.Client.Extensions
             /// COMENTADO TEMPORARIAMENTE PARA TESTES SEM REENVIO DE REQUESTS!
             /// ********************************************************************************
             //services.AddHttpClient<MundusHttpClient>()
-            //    .AddStandardResilienceHandler(options => {
+            //    .AddStandardResilienceHandler(options =>
+            //    {
             //        if (options.TotalRequestTimeout != null)
             //            options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(15);
 
@@ -196,7 +198,7 @@ namespace Mundus.Security.Client.Extensions
             try
             {
                 using var httpClient = httpClientFactory.CreateClient();
-                var baseUrl = options.SecurityUrl.TrimEnd('/');
+                var baseUrl = options.SecurityDestinationUrl.TrimEnd('/');
 
                 // 1. First step of the handshake: Search for a clean and straight MACHINE TOKEN:
                 var m2mTokenUrl = $"{baseUrl}/api/v1/administration/m2m/connect/token";
@@ -250,7 +252,6 @@ namespace Mundus.Security.Client.Extensions
             {
                 return null;
             }
-            
         }
 
 

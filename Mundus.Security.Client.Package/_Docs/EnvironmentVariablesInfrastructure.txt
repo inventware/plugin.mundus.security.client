@@ -13,7 +13,8 @@ services:
       - MUNDUS_APPLICATION_CODE=VIDE_MUNDUS_SITE
       - MUNDUS_CLIENT_ID=VIDE_MUNDUS_VIDE_MUNDUS_SITE_001_M2M
       - MUNDUS_CLIENT_SECRET=632CF113BBE24DBDA4E0814D3AF2461A
-      - MUNDUS_SECURITY_URL=https://mundussecurity.com.br
+      - MUNDUS_SECURITY_DESTINATION_URL=https://mundussecurity.com.br
+      - MUNDUS_SECURITY_ORIGIN_URL=https://satelliteapplication.com.br
 
 2. Linux Ubuntu / Debian (Serviço Systemd)
 Se o cliente hospedar a aplicação .NET diretamente em uma máquina virtual Linux rodando via systemd, ele edita o arquivo de serviço 
@@ -26,7 +27,8 @@ Se o cliente hospedar a aplicação .NET diretamente em uma máquina virtual Lin
     Environment=MUNDUS_APPLICATION_CODE=VIDE_MUNDUS_SITE
     Environment=MUNDUS_CLIENT_ID=VIDE_MUNDUS_VIDE_MUNDUS_SITE_001_M2M
     Environment=MUNDUS_CLIENT_SECRET=632CF113BBE24DBDA4E0814D3AF2461A
-    Environment=MUNDUS_SECURITY_URL=https://mundussecurity.com.br
+    Environment=MUNDUS_SECURITY_DESTINATION_URL=https://mundussecurity.com.br
+    Environment=MUNDUS_SECURITY_ORIGIN_URL=https://satelliteapplication.com.br
 
 3. Servidor Web Apache / Nginx (como Proxy Reverso)
     O Apache ou Nginx funcionam apenas como "porteiros" (redirecionando a porta 80/443 para a porta interna do .NET, ex: 5000). Quem roda 
@@ -42,7 +44,8 @@ No IIS do Windows, o cliente pode isolar as variáveis por site adicionando-as d
             <environmentVariable name="MUNDUS_APPLICATION_CODE" value="VIDE_MUNDUS_SITE" />
             <environmentVariable name="MUNDUS_CLIENT_ID" value="VIDE_MUNDUS_VIDE_MUNDUS_SITE_001_M2M" />
             <environmentVariable name="MUNDUS_CLIENT_SECRET" value="632CF113BBE24DBDA4E0814D3AF2461A" />
-            <environmentVariable name="MUNDUS_SECURITY_URL" value="https://mundussecurity.com.br" />
+            <environmentVariable name="MUNDUS_SECURITY_DESTINATION_URL" value="https://mundussecurity.com.br" />
+            <environmentVariable name="MUNDUS_SECURITY_ORIGIN_URL" value="https://satelliteapplication.com.br" />
           </environmentVariables>
         </aspNetCore>
       </system.webServer>
@@ -57,7 +60,8 @@ O cliente pode configurar as variáveis de duas formas:
           MUNDUS_APPLICATION_CODE: "VIDE_MUNDUS_SITE"
           MUNDUS_CLIENT_ID: "VIDE_MUNDUS_VIDE_MUNDUS_SITE_001_M2M"
           MUNDUS_CLIENT_SECRET: "632CF113BBE24DBDA4E0814D3AF2461A"
-          MUNDUS_SECURITY_URL: "https://mundussecurity.com.br"
+          MUNDUS_SECURITY_DESTINATION_URL: "https://mundussecurity.com.br"
+          MUNDUS_SECURITY_ORIGIN_URL: "https://satelliteapplication.com.br"
 
 6.  Azure Functions
 No ecossistema Microsoft Azure, as variáveis de ambiente ficam centralizadas no painel do recurso:
@@ -69,7 +73,8 @@ Localmente (local.settings.json):
         "MUNDUS_APPLICATION_CODE": "VIDE_MUNDUS_SITE",
         "MUNDUS_CLIENT_ID": "VIDE_MUNDUS_VIDE_MUNDUS_SITE_001_M2M",
         "MUNDUS_CLIENT_SECRET": "632CF113BBE24DBDA4E0814D3AF2461A",
-        "MUNDUS_SECURITY_URL": "https://mundussecurity.com.br"
+        "MUNDUS_SECURITY_DESTINATION_URL": "https://mundussecurity.com.br",
+        "MUNDUS_SECURITY_ORIGIN_URL": "https://satelliteapplication.com.br"
       }
     }
 

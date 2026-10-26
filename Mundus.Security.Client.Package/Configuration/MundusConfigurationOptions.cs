@@ -3,9 +3,9 @@
 
 namespace Mundus.Security.Client.Configuration
 {
-    [Description("Internal object that maps and centralizes the reading of the five mandatory environment variables " +
-        "(MUNDUS_COMPANY_CODE, MUNDUS_APPLICATION_CODE, MUNDUS_CLIENT_ID, MUNDUS_CLIENT_SECRET, MUNDUS_SECURITY_URL) " +
-        "directly from the client server process memory.")]
+    [Description("Internal object that maps and centralizes the reading of the six mandatory environment variables " +
+        "(MUNDUS_COMPANY_CODE, MUNDUS_APPLICATION_CODE, MUNDUS_CLIENT_ID, MUNDUS_CLIENT_SECRET, " +
+        "MUNDUS_SECURITY_DESTINATION_URL, MUNDUS_SECURITY_ORIGIN_URL) directly from the client server process memory.")]
     public sealed class MundusConfigurationOptions
     {
         public MundusConfigurationOptions()
@@ -14,17 +14,20 @@ namespace Mundus.Security.Client.Configuration
             ApplicationCode = GetMundusSecurityEnvironmentVariable("MUNDUS_APPLICATION_CODE");
             ClientId = GetMundusSecurityEnvironmentVariable("MUNDUS_CLIENT_ID");
             ClientSecret = GetMundusSecurityEnvironmentVariable("MUNDUS_CLIENT_SECRET");
-            SecurityUrl = GetMundusSecurityEnvironmentVariable("MUNDUS_SECURITY_URL");
+            SecurityDestinationUrl = GetMundusSecurityEnvironmentVariable("MUNDUS_SECURITY_DESTINATION_URL");
+            SatelliteOriginUrl = GetMundusSecurityEnvironmentVariable("MUNDUS_SECURITY_ORIGIN_URL");
 
             if (string.IsNullOrWhiteSpace(CompanyCode)
                 || string.IsNullOrWhiteSpace(ApplicationCode)
                 || string.IsNullOrWhiteSpace(ClientId)
                 || string.IsNullOrWhiteSpace(ClientSecret)
-                || string.IsNullOrWhiteSpace(SecurityUrl))
+                || string.IsNullOrWhiteSpace(SecurityDestinationUrl)
+                || string.IsNullOrWhiteSpace(SatelliteOriginUrl))
             {
                 throw new InvalidOperationException("(MUNDUS_INFRASTRUCTURE_ERROR) The environment variables required " +
                     "for communication with the Mundus Security platform (MUNDUS_COMPANY_CODE, MUNDUS_APPLICATION_CODE, " +
-                    "MUNDUS_CLIENT_ID, MUNDUS_CLIENT_SECRET, MUNDUS_SECURITY_URL) were not found or are empty.");
+                    "MUNDUS_CLIENT_ID, MUNDUS_CLIENT_SECRET, MUNDUS_SECURITY_DESTINATION_URL, MUNDUS_SECURITY_ORIGIN_URL) " +
+                    "were not found or are empty.");
             }
         }
 
@@ -37,7 +40,7 @@ namespace Mundus.Security.Client.Configuration
             if (OperatingSystem.IsWindows())
             {
                 var updatedValue = Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.Machine);
-                if ((string.IsNullOrWhiteSpace(value)) || 
+                if ((string.IsNullOrWhiteSpace(value)) ||
                     (!string.IsNullOrWhiteSpace(value) && !string.IsNullOrWhiteSpace(updatedValue) && value != updatedValue))
                 {
                     value = updatedValue;
@@ -56,6 +59,10 @@ namespace Mundus.Security.Client.Configuration
 
         public string ClientSecret { get; }
 
-        public string SecurityUrl { get; }
+        [Description("The URL of the Mundus Security platform where the client will send requests.")]
+        public string SecurityDestinationUrl { get; }
+
+        [Description("The contracted URL by the application client (satellite).")]
+        public string SatelliteOriginUrl { get; }
     }
 }

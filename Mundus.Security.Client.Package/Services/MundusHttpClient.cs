@@ -27,8 +27,8 @@ namespace Mundus.Security.Client.Services
             _httpContextAccessor = httpContextAccessor 
                 ?? throw new ArgumentNullException(nameof(httpContextAccessor));
 
-            if (_httpClient.BaseAddress == null && !string.IsNullOrWhiteSpace(_options.SecurityUrl)){
-                _httpClient.BaseAddress = new Uri(_options.SecurityUrl);
+            if (_httpClient.BaseAddress == null && !string.IsNullOrWhiteSpace(_options.SecurityDestinationUrl)){
+                _httpClient.BaseAddress = new Uri(_options.SecurityDestinationUrl);
             }
         }
 
@@ -42,9 +42,11 @@ namespace Mundus.Security.Client.Services
         public string ClientSecret => _options.ClientSecret;
 
 
+        #region HttpClient Methods for User Requests
+
         public async Task<HttpResponseMessage> GetFromMundusSecurityAsync(string relativePath)
         {
-            var requestUri = new Uri(_httpClient.BaseAddress ?? new Uri(_options.SecurityUrl), relativePath);
+            var requestUri = new Uri(_httpClient.BaseAddress ?? new Uri(_options.SecurityDestinationUrl), relativePath);
             using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
 
             PrepareRequestHeaders(request, attachUserToken: true);
@@ -90,7 +92,7 @@ namespace Mundus.Security.Client.Services
             }
 
             var requestUri = new Uri(_httpClient.BaseAddress 
-                ?? new Uri(_options.SecurityUrl), cleanPath);
+                ?? new Uri(_options.SecurityDestinationUrl), cleanPath);
 
             using var request =
                 new HttpRequestMessage(HttpMethod.Get, requestUri);
@@ -104,7 +106,131 @@ namespace Mundus.Security.Client.Services
         }
 
 
-        public async Task<HttpResponseMessage> GetFromMundusSecurityAsMachineAsync<T>(string relativePath, 
+        public async Task<HttpResponseMessage> PostToMundusSecurityAsync<T>(string relativePath, T payload)
+        {
+            var requestUri = new Uri(_httpClient.BaseAddress ?? new Uri(_options.SecurityDestinationUrl), relativePath);
+            using var request = new HttpRequestMessage(HttpMethod.Post, requestUri);
+
+            PrepareRequestHeaders(request, attachUserToken: true);
+
+            // Explicitly serializing the JSON to a string in RAM before sending. This forces .NET to populate the
+            // exact 'Content-Length' header (in bytes) and disables 'Transfer-Encoding: chunked', thereby avoiding
+            // issues with stream parsing on the Mundus Security server.
+            string jsonString = JsonSerializer.Serialize(payload);
+            request.Content = new StringContent(jsonString, Encoding.UTF8, "application/json");
+
+            try
+            {
+                return await _httpClient.SendAsync(request).ConfigureAwait(false);
+            }
+            catch (HttpRequestException ex)
+            {
+                throw new InvalidOperationException("[MUNDUS_SECURITY_ERROR] Mundus Security platform is " +
+                    "inaccessible.", ex);
+            }
+        }
+
+
+        public async Task<HttpResponseMessage> PutToMundusSecurityAsync<T>(string relativePath, T payload)
+        {
+            var requestUri = new Uri(_httpClient.BaseAddress ?? new Uri(_options.SecurityDestinationUrl), relativePath);
+            using var request = new HttpRequestMessage(HttpMethod.Put, requestUri);
+
+            PrepareRequestHeaders(request, attachUserToken: true);
+
+            request.Content = JsonContent.Create(payload);
+
+            try
+            {
+                return await _httpClient.SendAsync(request).ConfigureAwait(false);
+            }
+            catch (HttpRequestException ex)
+            {
+                throw new InvalidOperationException("[MUNDUS_SECURITY_ERROR] Mundus Security platform is " +
+                    "inaccessible.", ex);
+            }
+        }
+
+
+        public async Task<HttpResponseMessage> DeleteFromMundusSecurityAsync(string relativePath)
+        {
+            var requestUri = new Uri(_httpClient.BaseAddress ?? new Uri(_options.SecurityDestinationUrl), relativePath);
+            using var request = new HttpRequestMessage(HttpMethod.Delete, requestUri);
+
+            PrepareRequestHeaders(request, attachUserToken: true);
+
+            try
+            {
+                return await _httpClient.SendAsync(request).ConfigureAwait(false);
+            }
+            catch (HttpRequestException ex)
+            {
+                throw new InvalidOperationException("[MUNDUS_SECURITY_ERROR] Mundus Security platform is " +
+                    "inaccessible.", ex);
+            }
+        }
+
+
+        public async Task<HttpResponseMessage> DeleteFromMundusSecurityAsync<T>(string relativePath, T payload)
+        {
+            var requestUri = new Uri(_httpClient.BaseAddress ?? new Uri(_options.SecurityDestinationUrl), relativePath);
+            using var request = new HttpRequestMessage(HttpMethod.Delete, requestUri);
+
+            PrepareRequestHeaders(request, attachUserToken: true);
+
+            request.Content = JsonContent.Create(payload);
+
+            try
+            {
+                return await _httpClient.SendAsync(request).ConfigureAwait(false);
+            }
+            catch (HttpRequestException ex)
+            {
+                throw new InvalidOperationException("[MUNDUS_SECURITY_ERROR] Mundus Security platform is " +
+                    "inaccessible.", ex);
+            }
+        }
+
+
+        private void PrepareRequestHeaders(HttpRequestMessage request, bool attachUserToken = true)
+        {
+            // Adds X-Application-Code isolated to this request message.
+            if (!string.IsNullOrWhiteSpace(_options.ApplicationCode))
+                request.Headers.Add("X-Application-Code", _options.ApplicationCode);
+
+            if (!string.IsNullOrWhiteSpace(_options.SatelliteOriginUrl))
+                request.Headers.Add("X-Origin-Url", _options.SatelliteOriginUrl);
+
+            // 🎯 SAFETY GUARD: Prevents the authentication token from being attached to the outgoing request, avoiding
+            // false-positive 400/401 errors at the gateway.
+            if (!attachUserToken)
+                return;
+
+            // Copies the logged-in user token, if present, isolated to this request message.
+            try
+            {
+                var headers = _httpContextAccessor?.HttpContext?.Request?.Headers;
+                if (headers != null && headers.TryGetValue("Authorization", out var authValues))
+                {
+                    var headerValue = authValues.FirstOrDefault();
+                    if (!string.IsNullOrWhiteSpace(headerValue))
+                        request.Headers.Authorization = AuthenticationHeaderValue.Parse(headerValue);
+                }
+            }
+            catch
+            {
+                // Swallow: keeps resilience if parsing fails.
+            }
+        }
+
+        #endregion
+
+
+
+
+        #region HttpClient Methods for Machine-to-Machine (M2M) Requests
+
+        public async Task<HttpResponseMessage> GetFromMundusSecurityAsMachineAsync<T>(string relativePath,
             T queryParameters) where T : class
         {
             try
@@ -129,14 +255,14 @@ namespace Mundus.Security.Client.Services
 
                     if (!string.IsNullOrWhiteSpace(queryString))
                     {
-                        cleanPath = relativePath.Contains("?") 
-                            ? $"{relativePath}&{queryString}" 
+                        cleanPath = relativePath.Contains("?")
+                            ? $"{relativePath}&{queryString}"
                             : $"{relativePath}?{queryString}";
                     }
                 }
 
                 // Combines final URI with a Query String generated.
-                var requestUri = new Uri(_httpClient.BaseAddress ?? new Uri(_options.SecurityUrl), cleanPath);
+                var requestUri = new Uri(_httpClient.BaseAddress ?? new Uri(_options.SecurityDestinationUrl), cleanPath);
                 using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
 
                 request.Headers.Add("X-Application-Code", _options.ApplicationCode);
@@ -152,32 +278,6 @@ namespace Mundus.Security.Client.Services
             }
         }
 
-
-        public async Task<HttpResponseMessage> PostToMundusSecurityAsync<T>(string relativePath, T payload)
-        {
-            var requestUri = new Uri(_httpClient.BaseAddress ?? new Uri(_options.SecurityUrl), relativePath);
-            using var request = new HttpRequestMessage(HttpMethod.Post, requestUri);
-
-            PrepareRequestHeaders(request, attachUserToken: true);
-
-            // Explicitly serializing the JSON to a string in RAM before sending. This forces .NET to populate the
-            // exact 'Content-Length' header (in bytes) and disables 'Transfer-Encoding: chunked', thereby avoiding
-            // issues with stream parsing on the Mundus Security server.
-            string jsonString = JsonSerializer.Serialize(payload);
-            request.Content = new StringContent(jsonString, Encoding.UTF8, "application/json");
-
-            try
-            {
-                return await _httpClient.SendAsync(request).ConfigureAwait(false);
-            }
-            catch (HttpRequestException ex)
-            {
-                throw new InvalidOperationException("[MUNDUS_SECURITY_ERROR] Mundus Security platform is " +
-                    "inaccessible.", ex);
-            }
-        }
-
-
         public async Task<HttpResponseMessage> PostToMundusSecurityAsMachineAsync<T>(string relativePath, T payload)
         {
             try
@@ -189,7 +289,7 @@ namespace Mundus.Security.Client.Services
                         "Mundus Security.");
                 }
 
-                var requestUri = new Uri(_httpClient.BaseAddress ?? new Uri(_options.SecurityUrl), relativePath);
+                var requestUri = new Uri(_httpClient.BaseAddress ?? new Uri(_options.SecurityDestinationUrl), relativePath);
                 using var request = new HttpRequestMessage(HttpMethod.Post, requestUri);
 
                 request.Headers.Add("X-Application-Code", _options.ApplicationCode);
@@ -211,101 +311,9 @@ namespace Mundus.Security.Client.Services
         }
 
 
-        public async Task<HttpResponseMessage> PutToMundusSecurityAsync<T>(string relativePath, T payload)
-        {
-            var requestUri = new Uri(_httpClient.BaseAddress ?? new Uri(_options.SecurityUrl), relativePath);
-            using var request = new HttpRequestMessage(HttpMethod.Put, requestUri);
-
-            PrepareRequestHeaders(request, attachUserToken: true);
-
-            request.Content = JsonContent.Create(payload);
-
-            try
-            {
-                return await _httpClient.SendAsync(request).ConfigureAwait(false);
-            }
-            catch (HttpRequestException ex)
-            {
-                throw new InvalidOperationException("[MUNDUS_SECURITY_ERROR] Mundus Security platform is " +
-                    "inaccessible.", ex);
-            }
-        }
-
-
-        public async Task<HttpResponseMessage> DeleteFromMundusSecurityAsync(string relativePath)
-        {
-            var requestUri = new Uri(_httpClient.BaseAddress ?? new Uri(_options.SecurityUrl), relativePath);
-            using var request = new HttpRequestMessage(HttpMethod.Delete, requestUri);
-
-            PrepareRequestHeaders(request, attachUserToken: true);
-
-            try
-            {
-                return await _httpClient.SendAsync(request).ConfigureAwait(false);
-            }
-            catch (HttpRequestException ex)
-            {
-                throw new InvalidOperationException("[MUNDUS_SECURITY_ERROR] Mundus Security platform is " +
-                    "inaccessible.", ex);
-            }
-        }
-
-
-        public async Task<HttpResponseMessage> DeleteFromMundusSecurityAsync<T>(string relativePath, T payload)
-        {
-            var requestUri = new Uri(_httpClient.BaseAddress ?? new Uri(_options.SecurityUrl), relativePath);
-            using var request = new HttpRequestMessage(HttpMethod.Delete, requestUri);
-
-            PrepareRequestHeaders(request, attachUserToken: true);
-
-            request.Content = JsonContent.Create(payload);
-
-            try
-            {
-                return await _httpClient.SendAsync(request).ConfigureAwait(false);
-            }
-            catch (HttpRequestException ex)
-            {
-                throw new InvalidOperationException("[MUNDUS_SECURITY_ERROR] Mundus Security platform is " +
-                    "inaccessible.", ex);
-            }
-        }
-
-
-        private void PrepareRequestHeaders(HttpRequestMessage request, bool attachUserToken = true)
-        {
-            // Adds X-Application-Code isolated to this request message.
-            if (!string.IsNullOrWhiteSpace(_options.ApplicationCode)){
-                request.Headers.Add("X-Application-Code", _options.ApplicationCode);
-            }
-
-            // 🎯 SAFETY GUARD: Prevents the authentication token from being attached to the outgoing request, avoiding
-            // false-positive 400/401 errors at the gateway.
-            if (!attachUserToken)
-                return;
-
-            // Copies the logged-in user token, if present, isolated to this request message.
-            try
-            {
-                var headers = _httpContextAccessor?.HttpContext?.Request?.Headers;
-                if (headers != null && headers.TryGetValue("Authorization", out var authValues))
-                {
-                    var headerValue = authValues.FirstOrDefault();
-                    if (!string.IsNullOrWhiteSpace(headerValue)){
-                        request.Headers.Authorization = AuthenticationHeaderValue.Parse(headerValue);
-                    }
-                }
-            }
-            catch
-            {
-                // Swallow: keeps resilience if parsing fails.
-            }
-        }
-
-
         public async Task<string?> GetMachineTokenAsync()
         {
-            var tokenRequestUri = new Uri(_httpClient.BaseAddress ?? new Uri(_options.SecurityUrl), 
+            var tokenRequestUri = new Uri(_httpClient.BaseAddress ?? new Uri(_options.SecurityDestinationUrl), 
                 "api/v1/administration/m2m/connect/token");
 
             var requestCredentials = new
@@ -319,7 +327,19 @@ namespace Mundus.Security.Client.Services
 
             using var request = new HttpRequestMessage(HttpMethod.Post, tokenRequestUri);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-            
+
+            if (!string.IsNullOrWhiteSpace(_options.ApplicationCode))
+                request.Headers.Add("X-Application-Code", _options.ApplicationCode);
+            else
+                throw new InvalidOperationException("[MUNDUS_SECURITY_ERROR] A configuração 'ApplicationCode' está " +
+                    "ausente.");
+
+            if (!string.IsNullOrWhiteSpace(_options.SatelliteOriginUrl))
+                request.Headers.Add("X-Origin-Url", _options.SatelliteOriginUrl);
+            else
+                throw new InvalidOperationException("[MUNDUS_SECURITY_ERROR] A configuração 'SatelliteOriginUrl' está " +
+                    "ausente.");
+
             // 🎯 Forçando a serialização em bloco sólido na memória RAM (Chunked):
             string jsonString = JsonSerializer.Serialize(requestCredentials);
             //request.Content = new StringContent(jsonString, Encoding.UTF8, "application/json");
@@ -335,7 +355,8 @@ namespace Mundus.Security.Client.Services
             }
             catch (HttpRequestException ex)
             {
-                throw new InvalidOperationException("[MUNDUS_SECURITY_ERROR] Mundus Security platform is inaccessible.", ex);
+                throw new InvalidOperationException("[MUNDUS_SECURITY_ERROR] Mundus Security platform is inaccessible.",
+                    ex);
             }
 
             return await ParseTokenResponse(tokenResponse, tokenRequestUri);
@@ -366,5 +387,7 @@ namespace Mundus.Security.Client.Services
             throw new InvalidOperationException("[MUNDUS_SECURITY_ERROR] Invalid token response: 'token' or " +
                 "'access_token' field missing.");
         }
+
+        #endregion
     }
 }
