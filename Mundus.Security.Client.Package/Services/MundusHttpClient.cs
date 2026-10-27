@@ -262,11 +262,10 @@ namespace Mundus.Security.Client.Services
                 }
 
                 // Combines final URI with a Query String generated.
-                var requestUri = new Uri(_httpClient.BaseAddress ?? new Uri(_options.SecurityDestinationUrl), cleanPath);
-                using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
+                var requestUri = new Uri(_httpClient.BaseAddress 
+                    ?? new Uri(_options.SecurityDestinationUrl), cleanPath);
 
-                request.Headers.Add("X-Application-Code", _options.ApplicationCode);
-                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", machineToken);
+                using var request = LoadRequest(HttpMethod.Get, requestUri, string.Empty);
 
                 // Dispatches the request resiliently via the Polly V8 pool.
                 return await _httpClient.SendAsync(request).ConfigureAwait(false);
@@ -289,16 +288,12 @@ namespace Mundus.Security.Client.Services
                         "Mundus Security.");
                 }
 
-                var requestUri = new Uri(_httpClient.BaseAddress ?? new Uri(_options.SecurityDestinationUrl), relativePath);
-                using var request = new HttpRequestMessage(HttpMethod.Post, requestUri);
-
-                request.Headers.Add("X-Application-Code", _options.ApplicationCode);
-                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", machineToken);
-
-                // 🎯 CHUNKED M2M POST: Serializing in memory, eliminating the fragmented stream:
+                var requestUri = new Uri(_httpClient.BaseAddress
+                    ?? new Uri(_options.SecurityDestinationUrl), relativePath);
+                
                 string jsonString = JsonSerializer.Serialize(payload);
-                request.Content = new StringContent(jsonString, Encoding.UTF8, "application/json");
-                request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+                
+                var request = LoadRequest(HttpMethod.Post, requestUri, jsonString);
 
                 var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
                 return response;
@@ -313,8 +308,8 @@ namespace Mundus.Security.Client.Services
 
         public async Task<string?> GetMachineTokenAsync()
         {
-            var tokenRequestUri = new Uri(_httpClient.BaseAddress ?? new Uri(_options.SecurityDestinationUrl), 
-                "api/v1/administration/m2m/connect/token");
+            var tokenRequestUri = new Uri(_httpClient.BaseAddress 
+                ?? new Uri(_options.SecurityDestinationUrl), "api/v1/administration/m2m/connect/token");
 
             var requestCredentials = new
             {
@@ -325,27 +320,9 @@ namespace Mundus.Security.Client.Services
                 clientSecret = _options.ClientSecret
             };
 
-            using var request = new HttpRequestMessage(HttpMethod.Post, tokenRequestUri);
-            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-            if (!string.IsNullOrWhiteSpace(_options.ApplicationCode))
-                request.Headers.Add("X-Application-Code", _options.ApplicationCode);
-            else
-                throw new InvalidOperationException("[MUNDUS_SECURITY_ERROR] A configuração 'ApplicationCode' está " +
-                    "ausente.");
-
-            if (!string.IsNullOrWhiteSpace(_options.SatelliteOriginUrl))
-                request.Headers.Add("X-Origin-Url", _options.SatelliteOriginUrl);
-            else
-                throw new InvalidOperationException("[MUNDUS_SECURITY_ERROR] A configuração 'SatelliteOriginUrl' está " +
-                    "ausente.");
-
             // 🎯 Forçando a serialização em bloco sólido na memória RAM (Chunked):
-            string jsonString = JsonSerializer.Serialize(requestCredentials);
-            //request.Content = new StringContent(jsonString, Encoding.UTF8, "application/json");
-            // 🎯 Forçando o CONTENT-TYPE PURO: Removendo o charset do header para não confundir o Gateway do Servidor
-            request.Content = new StringContent(jsonString, Encoding.UTF8, "application/json");
-            request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+            string jsonSerialized = JsonSerializer.Serialize(requestCredentials);
+            using var request = LoadRequest(HttpMethod.Post, tokenRequestUri, jsonSerialized);
 
             HttpResponseMessage tokenResponse;
 
@@ -360,6 +337,34 @@ namespace Mundus.Security.Client.Services
             }
 
             return await ParseTokenResponse(tokenResponse, tokenRequestUri);
+        }
+
+
+        private HttpRequestMessage LoadRequest(HttpMethod httpVerb, Uri requestUri, string? jsonSerialized)
+        {
+            var request = new HttpRequestMessage(httpVerb, requestUri);
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+            if (!string.IsNullOrWhiteSpace(_options.ApplicationCode))
+                request.Headers.Add("X-Application-Code", _options.ApplicationCode);
+            else
+                throw new InvalidOperationException("[MUNDUS_SECURITY_ERROR] A configuração 'ApplicationCode' está " +
+                    "ausente.");
+
+            if (!string.IsNullOrWhiteSpace(_options.SatelliteOriginUrl))
+                request.Headers.Add("X-Origin-Url", _options.SatelliteOriginUrl);
+            else
+                throw new InvalidOperationException("[MUNDUS_SECURITY_ERROR] A configuração 'SatelliteOriginUrl' está " +
+                    "ausente.");
+
+            if (!string.IsNullOrWhiteSpace(jsonSerialized))
+            {
+                // 🎯 Forçando o CONTENT-TYPE PURO: Removendo o charset do header para não confundir o Gateway do Servidor
+                request.Content = new StringContent(jsonSerialized, Encoding.UTF8, "application/json");
+                request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+            }
+
+            return request;
         }
 
 
