@@ -235,6 +235,7 @@ namespace Mundus.Security.Client.Extensions
                 var handshakeUrl = $"{baseUrl}/api/v1/administration/handshake-settings";
                 using var handshakeRequest = new HttpRequestMessage(HttpMethod.Get, handshakeUrl);
                 handshakeRequest.Headers.Add("X-Application-Code", options.ApplicationCode);
+                handshakeRequest.Headers.Add("X-Origin-Url", options.SecurityDestinationUrl ?? baseUrl);
                 handshakeRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", machineToken);
 
                 using var handshakeResponse = await httpClient.SendAsync(handshakeRequest).ConfigureAwait(false);
@@ -248,7 +249,7 @@ namespace Mundus.Security.Client.Extensions
 
                 return configuration;
             }
-            catch
+            catch (Exception ex)
             {
                 return null;
             }
