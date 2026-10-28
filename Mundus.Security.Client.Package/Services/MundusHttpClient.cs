@@ -265,7 +265,7 @@ namespace Mundus.Security.Client.Services
                 var requestUri = new Uri(_httpClient.BaseAddress 
                     ?? new Uri(_options.SecurityDestinationUrl), cleanPath);
 
-                using var request = LoadRequest(HttpMethod.Get, requestUri, string.Empty);
+                using var request = LoadRequest(HttpMethod.Get, requestUri, string.Empty, machineToken);
 
                 // Dispatches the request resiliently via the Polly V8 pool.
                 return await _httpClient.SendAsync(request).ConfigureAwait(false);
@@ -293,7 +293,7 @@ namespace Mundus.Security.Client.Services
                 
                 string jsonString = JsonSerializer.Serialize(payload);
                 
-                var request = LoadRequest(HttpMethod.Post, requestUri, jsonString);
+                var request = LoadRequest(HttpMethod.Post, requestUri, jsonString, machineToken);
 
                 var response = await _httpClient.SendAsync(request).ConfigureAwait(false);
                 return response;
@@ -320,9 +320,8 @@ namespace Mundus.Security.Client.Services
                 clientSecret = _options.ClientSecret
             };
 
-            // 🎯 Forçando a serialização em bloco sólido na memória RAM (Chunked):
             string jsonSerialized = JsonSerializer.Serialize(requestCredentials);
-            using var request = LoadRequest(HttpMethod.Post, tokenRequestUri, jsonSerialized);
+            using var request = LoadRequest(HttpMethod.Post, tokenRequestUri, jsonSerialized, string.Empty);
 
             HttpResponseMessage tokenResponse;
 
@@ -340,7 +339,8 @@ namespace Mundus.Security.Client.Services
         }
 
 
-        private HttpRequestMessage LoadRequest(HttpMethod httpVerb, Uri requestUri, string? jsonSerialized)
+        private HttpRequestMessage LoadRequest(HttpMethod httpVerb, Uri requestUri, string? jsonSerialized, string?
+            authorizationToken)
         {
             var request = new HttpRequestMessage(httpVerb, requestUri);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
@@ -357,9 +357,13 @@ namespace Mundus.Security.Client.Services
                 throw new InvalidOperationException("[MUNDUS_SECURITY_ERROR] A configuração 'SatelliteOriginUrl' está " +
                     "ausente.");
 
+            if (!string.IsNullOrWhiteSpace(authorizationToken))
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
+
             if (!string.IsNullOrWhiteSpace(jsonSerialized))
             {
-                // 🎯 Forçando o CONTENT-TYPE PURO: Removendo o charset do header para não confundir o Gateway do Servidor
+                // 🎯 Forcing a pure CONTENT-TYPE: Removing the charset from the header to avoid confusing the Server
+                // Gateway.
                 request.Content = new StringContent(jsonSerialized, Encoding.UTF8, "application/json");
                 request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
             }
